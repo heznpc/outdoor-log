@@ -1,0 +1,38 @@
+# Local build and signing material
+.DS_Store
+.build/
+DerivedData/
+build/
+*.xcuserstate
+xcuserdata/
+*.xcarchive
+*.ipa
+*.dSYM/
+*.mobileprovision
+*.p12
+.env
+.env.*
+!.env.example
+node_modules/
+__pycache__/
+*.pyc
+
+# Keep all working documentation out of Git, including future pushes.
+docs/
+documentation/
+notes/
+**/*.md
+**/*.mdx
+**/*.rst
+**/*.adoc
+**/*.txt
+**/*.pdf
+**/*.doc
+**/*.docx
+**/*.pages
+**/*.rtf
+!LICENSE
+!NOTICE
+
+# Raw catalog downloads stay local; normalized, attributed resources are tracked.
+tools/catalog/raw/

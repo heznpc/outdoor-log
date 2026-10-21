@@ -1,0 +1,13 @@
+{
+  "provider": "전라남도 무안군 · 전국도시공원정보표준데이터",
+  "datasetTitle": "전국도시공원정보표준데이터 · 무안군 수집본",
+  "sourceURL": "https://www.data.go.kr/data/15012890/standard.do",
+  "referenceDate": "2026-07-28",
+  "capturedAt": "2026-09-13T04:22:32.156Z",
+  "license": "공공데이터포털 공개 표준데이터. 원자료 이용허락범위를 확인하세요.",
+  "note": "기존 프로젝트가 보존한 공개 데이터 수집본입니다. 주소 표기는 수집본 원문을 유지했으며 행정구역 명칭의 최신성은 별도 확인하지 않았습니다. 공원 대표 좌표이며 운동기구의 위치·종류·수량은 확인되지 않았습니다.",
+  "idPrefix": "public-park-",
+  "regionCode": "46840",
+  "regionName": "무안군",
+  "coordinateQuality": "park"
+}

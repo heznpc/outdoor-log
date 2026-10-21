@@ -1,0 +1,703 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0E477BD3B23F7D76A98A737B /* HealthModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31B594DABF91CE82911DE04D /* HealthModelTests.swift */; };
+		0FD39400840CEA85CEF24D08 /* HealthLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F86C7544732CA859699EB4C /* HealthLibrary.swift */; };
+		146D6D1142B0745D57306854 /* WatchRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36812BF34C35AAD18AD72E84 /* WatchRootView.swift */; };
+		19DE7BDCD87415D5215F8D83 /* ProtectedFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AC2E6BD8B12CE9223EBFA37 /* ProtectedFile.swift */; };
+		1C8E6CCD017BCE95682ACAE1 /* catalog.json in Resources */ = {isa = PBXBuildFile; fileRef = AE3F4BD642757D513A7D0EEF /* catalog.json */; };
+		1C928C2DCBB54C6692B1A563 /* CatalogLocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFC1216246B51B3C8CEFEEA3 /* CatalogLocation.swift */; };
+		2CDC25BB2C0FF152F355C1E7 /* OutdoorLogApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02DC84625752EA1B0CD18BFB /* OutdoorLogApp.swift */; };
+		32522D34854CFEC8D2F87802 /* WatchArchive.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56925D812D9601BAC42A6457 /* WatchArchive.swift */; };
+		331BFFE363C00261CEA966CE /* CatalogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8D6F5C3A7BA86B0CD31A9CD /* CatalogStore.swift */; };
+		36BE845E70AAAD1D2450D283 /* OutdoorLogWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5375414AAF9399DD20097FD2 /* OutdoorLogWatchApp.swift */; };
+		38A063E973FCDF2826C35815 /* WatchStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D4ABB47862F580F195D96A5 /* WatchStatusView.swift */; };
+		48A0D32B6F222B5BCE1F3721 /* WatchWire.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0055FA0A74137C1ACF38AA26 /* WatchWire.swift */; };
+		4F9E4FF1FD82CD729BA03236 /* ProtectedFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AC2E6BD8B12CE9223EBFA37 /* ProtectedFile.swift */; };
+		527EDDAFC9FE9E9B8209DE79 /* WatchPhoneConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 978B39096AC10043EAC45587 /* WatchPhoneConnection.swift */; };
+		5E17842991EBAADF4C56EB1C /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 19BBAAD18C220FF4FB87F927 /* PrivacyInfo.xcprivacy */; };
+		684CF1D934D1AAE2EF5AB830 /* WatchLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2102211BEA06B3C4215F6AC8 /* WatchLink.swift */; };
+		6A2955169745B3940886F055 /* WorkoutModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29D3148E8D933DD4FD6AA5BA /* WorkoutModels.swift */; };
+		6BC4BDC9A6B94858B2B73A62 /* RecordStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6121F90A8FF9E95F6A28946D /* RecordStore.swift */; };
+		81BC587CD43AB3AADBDAE0C0 /* WorkoutEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF4FDF24A30D27D698E75613 /* WorkoutEditor.swift */; };
+		84E4C9E480355AEFBE172B95 /* WatchWire.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0055FA0A74137C1ACF38AA26 /* WatchWire.swift */; };
+		857ECB743B492DC7ACFCA7E7 /* WatchWorkoutController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9C66A16398926F2A47DB10F /* WatchWorkoutController.swift */; };
+		85C19E123F52F64A4638A004 /* HealthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65CDB02DCE5B8E195206F869 /* HealthView.swift */; };
+		865A80FE0269D9B64F3FCDC2 /* HealthModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 496CE6C3980823292253591F /* HealthModels.swift */; };
+		8D4B058ACA29C10003F726EC /* RecordsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEA6B7C34D4F5820E146335E /* RecordsView.swift */; };
+		8F3FF755A9519A10F7A7D6A8 /* WorkoutModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29D3148E8D933DD4FD6AA5BA /* WorkoutModels.swift */; };
+		95E7D1C0767F408A2FEB6B9B /* OutdoorLogWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 72857E3D36DE50BB01C6715F /* OutdoorLogWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		9C0754160514335A38233FDB /* CatalogDataSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EC4958F6619621738E2F391 /* CatalogDataSettingsView.swift */; };
+		A2F88A3DE11E5F6A1A4DE479 /* EquipmentDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D313D446401F58C8C59FB33A /* EquipmentDetailView.swift */; };
+		C344736FFD5DE7C90F0F756A /* CatalogSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7198F055C825006F3F1BEA78 /* CatalogSearch.swift */; };
+		C3DED03968724D5C4566408A /* PhoneWorkoutController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD2F31919E0E296AB4D4B4B5 /* PhoneWorkoutController.swift */; };
+		C97E5DD7755021D64BA6FB63 /* EquipmentPlace.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE5800AC6387D1F38F4FC86C /* EquipmentPlace.swift */; };
+		DA997D1D807E4E6045C437BD /* ExploreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B23454D6ED6F1909C6DF376E /* ExploreView.swift */; };
+		EF7F3A9FBD3AA40146FAC82F /* CatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020668BB22285334BE48404C /* CatalogTests.swift */; };
+		F82F1FA99BFFD9BCC8231AE2 /* RecordStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF9DE24D86B3C9FB55DE6669 /* RecordStoreTests.swift */; };
+		F8E6B93BC4DE6F88E8B49143 /* WatchProtocolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC6190017270B2396118EEE2 /* WatchProtocolTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		7D5439CDC8F6EDA18FE86C85 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AF23A72C74394D8E2FC8E0D4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E1B32A441AACA8B32FDD3B1D;
+			remoteInfo = OutdoorLogWatch;
+		};
+		7DEA318DD31C2A76B994A6EB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AF23A72C74394D8E2FC8E0D4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D526D8FD519A24D784C8C67C;
+			remoteInfo = OutdoorLog;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		3A5E9686DA5EB30EF15C27FE /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				95E7D1C0767F408A2FEB6B9B /* OutdoorLogWatch.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		0055FA0A74137C1ACF38AA26 /* WatchWire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchWire.swift; sourceTree = "<group>"; };
+		020668BB22285334BE48404C /* CatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogTests.swift; sourceTree = "<group>"; };
+		02DC84625752EA1B0CD18BFB /* OutdoorLogApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutdoorLogApp.swift; sourceTree = "<group>"; };
+		0F86C7544732CA859699EB4C /* HealthLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthLibrary.swift; sourceTree = "<group>"; };
+		19BBAAD18C220FF4FB87F927 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		1AC2E6BD8B12CE9223EBFA37 /* ProtectedFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtectedFile.swift; sourceTree = "<group>"; };
+		2102211BEA06B3C4215F6AC8 /* WatchLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchLink.swift; sourceTree = "<group>"; };
+		29D3148E8D933DD4FD6AA5BA /* WorkoutModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutModels.swift; sourceTree = "<group>"; };
+		2EC4958F6619621738E2F391 /* CatalogDataSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogDataSettingsView.swift; sourceTree = "<group>"; };
+		31B594DABF91CE82911DE04D /* HealthModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthModelTests.swift; sourceTree = "<group>"; };
+		36812BF34C35AAD18AD72E84 /* WatchRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchRootView.swift; sourceTree = "<group>"; };
+		48EB01579E8F6D068CF35D00 /* OutdoorLog.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = OutdoorLog.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		496CE6C3980823292253591F /* HealthModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthModels.swift; sourceTree = "<group>"; };
+		4D4ABB47862F580F195D96A5 /* WatchStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchStatusView.swift; sourceTree = "<group>"; };
+		5375414AAF9399DD20097FD2 /* OutdoorLogWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutdoorLogWatchApp.swift; sourceTree = "<group>"; };
+		56925D812D9601BAC42A6457 /* WatchArchive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchArchive.swift; sourceTree = "<group>"; };
+		6121F90A8FF9E95F6A28946D /* RecordStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordStore.swift; sourceTree = "<group>"; };
+		65CDB02DCE5B8E195206F869 /* HealthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthView.swift; sourceTree = "<group>"; };
+		7198F055C825006F3F1BEA78 /* CatalogSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogSearch.swift; sourceTree = "<group>"; };
+		72857E3D36DE50BB01C6715F /* OutdoorLogWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OutdoorLogWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		978B39096AC10043EAC45587 /* WatchPhoneConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchPhoneConnection.swift; sourceTree = "<group>"; };
+		A8D6F5C3A7BA86B0CD31A9CD /* CatalogStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogStore.swift; sourceTree = "<group>"; };
+		AC83BE777241628DE35283B0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		AE3F4BD642757D513A7D0EEF /* catalog.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = catalog.json; sourceTree = "<group>"; };
+		AEA6B7C34D4F5820E146335E /* RecordsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordsView.swift; sourceTree = "<group>"; };
+		B23454D6ED6F1909C6DF376E /* ExploreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreView.swift; sourceTree = "<group>"; };
+		BC6190017270B2396118EEE2 /* WatchProtocolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchProtocolTests.swift; sourceTree = "<group>"; };
+		BD2F31919E0E296AB4D4B4B5 /* PhoneWorkoutController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWorkoutController.swift; sourceTree = "<group>"; };
+		CF4FDF24A30D27D698E75613 /* WorkoutEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutEditor.swift; sourceTree = "<group>"; };
+		D313D446401F58C8C59FB33A /* EquipmentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EquipmentDetailView.swift; sourceTree = "<group>"; };
+		D9C66A16398926F2A47DB10F /* WatchWorkoutController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchWorkoutController.swift; sourceTree = "<group>"; };
+		DF9DE24D86B3C9FB55DE6669 /* RecordStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordStoreTests.swift; sourceTree = "<group>"; };
+		DFC1216246B51B3C8CEFEEA3 /* CatalogLocation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogLocation.swift; sourceTree = "<group>"; };
+		EE5800AC6387D1F38F4FC86C /* EquipmentPlace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EquipmentPlace.swift; sourceTree = "<group>"; };
+		F4C487C2CE5D5BD794098FA8 /* OutdoorLogTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = OutdoorLogTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		0F2F3E8EA2460D173E418E4D /* Records */ = {
+			isa = PBXGroup;
+			children = (
+				BD2F31919E0E296AB4D4B4B5 /* PhoneWorkoutController.swift */,
+				6121F90A8FF9E95F6A28946D /* RecordStore.swift */,
+				AEA6B7C34D4F5820E146335E /* RecordsView.swift */,
+				CF4FDF24A30D27D698E75613 /* WorkoutEditor.swift */,
+			);
+			path = Records;
+			sourceTree = "<group>";
+		};
+		1F70AE4BC33435E28B954491 /* Health */ = {
+			isa = PBXGroup;
+			children = (
+				0F86C7544732CA859699EB4C /* HealthLibrary.swift */,
+				496CE6C3980823292253591F /* HealthModels.swift */,
+				65CDB02DCE5B8E195206F869 /* HealthView.swift */,
+			);
+			path = Health;
+			sourceTree = "<group>";
+		};
+		248DDFC43D65CF03097F10A4 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				FC80077481A740B8C2756D71 /* App */,
+				ADD9A18350BCC26E0092E1C6 /* Catalog */,
+				1F70AE4BC33435E28B954491 /* Health */,
+				0F2F3E8EA2460D173E418E4D /* Records */,
+				AE3164A08AA765C73E03438E /* Watch */,
+			);
+			path = iOS;
+			sourceTree = "<group>";
+		};
+		35914683D044D61D49172993 = {
+			isa = PBXGroup;
+			children = (
+				248DDFC43D65CF03097F10A4 /* iOS */,
+				A34834DCE880EE0A0C54040A /* Protocol */,
+				622CFE8F0EF99AFCE1A56DDB /* Resources */,
+				6EE4AE41C60AF23638AFD788 /* Shared */,
+				3B58B10F49B3C1CF4B58A199 /* Tests */,
+				553595D11FA759EA03F74BC4 /* Watch */,
+				3DBEA1B585FDFDF87B685476 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		3B58B10F49B3C1CF4B58A199 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				020668BB22285334BE48404C /* CatalogTests.swift */,
+				31B594DABF91CE82911DE04D /* HealthModelTests.swift */,
+				AC83BE777241628DE35283B0 /* Info.plist */,
+				DF9DE24D86B3C9FB55DE6669 /* RecordStoreTests.swift */,
+				BC6190017270B2396118EEE2 /* WatchProtocolTests.swift */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		3DBEA1B585FDFDF87B685476 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				48EB01579E8F6D068CF35D00 /* OutdoorLog.app */,
+				F4C487C2CE5D5BD794098FA8 /* OutdoorLogTests.xctest */,
+				72857E3D36DE50BB01C6715F /* OutdoorLogWatch.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		553595D11FA759EA03F74BC4 /* Watch */ = {
+			isa = PBXGroup;
+			children = (
+				5375414AAF9399DD20097FD2 /* OutdoorLogWatchApp.swift */,
+				56925D812D9601BAC42A6457 /* WatchArchive.swift */,
+				978B39096AC10043EAC45587 /* WatchPhoneConnection.swift */,
+				36812BF34C35AAD18AD72E84 /* WatchRootView.swift */,
+				D9C66A16398926F2A47DB10F /* WatchWorkoutController.swift */,
+				A34834DCE880EE0A0C54040A /* Protocol */,
+			);
+			path = Watch;
+			sourceTree = "<group>";
+		};
+		622CFE8F0EF99AFCE1A56DDB /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				AE3F4BD642757D513A7D0EEF /* catalog.json */,
+				19BBAAD18C220FF4FB87F927 /* PrivacyInfo.xcprivacy */,
+			);
+			name = Resources;
+			path = iOS/Resources;
+			sourceTree = "<group>";
+		};
+		6EE4AE41C60AF23638AFD788 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				1AC2E6BD8B12CE9223EBFA37 /* ProtectedFile.swift */,
+				29D3148E8D933DD4FD6AA5BA /* WorkoutModels.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		A34834DCE880EE0A0C54040A /* Protocol */ = {
+			isa = PBXGroup;
+			children = (
+				0055FA0A74137C1ACF38AA26 /* WatchWire.swift */,
+			);
+			name = Protocol;
+			path = Watch/Protocol;
+			sourceTree = "<group>";
+		};
+		ADD9A18350BCC26E0092E1C6 /* Catalog */ = {
+			isa = PBXGroup;
+			children = (
+				2EC4958F6619621738E2F391 /* CatalogDataSettingsView.swift */,
+				DFC1216246B51B3C8CEFEEA3 /* CatalogLocation.swift */,
+				7198F055C825006F3F1BEA78 /* CatalogSearch.swift */,
+				A8D6F5C3A7BA86B0CD31A9CD /* CatalogStore.swift */,
+				D313D446401F58C8C59FB33A /* EquipmentDetailView.swift */,
+				EE5800AC6387D1F38F4FC86C /* EquipmentPlace.swift */,
+				B23454D6ED6F1909C6DF376E /* ExploreView.swift */,
+			);
+			path = Catalog;
+			sourceTree = "<group>";
+		};
+		AE3164A08AA765C73E03438E /* Watch */ = {
+			isa = PBXGroup;
+			children = (
+				2102211BEA06B3C4215F6AC8 /* WatchLink.swift */,
+				4D4ABB47862F580F195D96A5 /* WatchStatusView.swift */,
+			);
+			path = Watch;
+			sourceTree = "<group>";
+		};
+		FC80077481A740B8C2756D71 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				02DC84625752EA1B0CD18BFB /* OutdoorLogApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		772D66B5244DB892C095F42B /* OutdoorLogTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = ADF89C71786B08F631A30F62 /* Build configuration list for PBXNativeTarget "OutdoorLogTests" */;
+			buildPhases = (
+				DFC3253B8C733C137304E437 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F69D431A53F3DFC890BBDA4E /* PBXTargetDependency */,
+			);
+			name = OutdoorLogTests;
+			packageProductDependencies = (
+			);
+			productName = OutdoorLogTests;
+			productReference = F4C487C2CE5D5BD794098FA8 /* OutdoorLogTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		D526D8FD519A24D784C8C67C /* OutdoorLog */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4636FBA6C408577A117A944D /* Build configuration list for PBXNativeTarget "OutdoorLog" */;
+			buildPhases = (
+				EAD9A587DF459A91332D4502 /* Sources */,
+				57C364AE04880BA6B0A48390 /* Resources */,
+				3A5E9686DA5EB30EF15C27FE /* Embed Watch Content */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				27FB39C2897AE6070B795152 /* PBXTargetDependency */,
+			);
+			name = OutdoorLog;
+			packageProductDependencies = (
+			);
+			productName = OutdoorLog;
+			productReference = 48EB01579E8F6D068CF35D00 /* OutdoorLog.app */;
+			productType = "com.apple.product-type.application";
+		};
+		E1B32A441AACA8B32FDD3B1D /* OutdoorLogWatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C3E72D6CCB0DB089F3B355AA /* Build configuration list for PBXNativeTarget "OutdoorLogWatch" */;
+			buildPhases = (
+				D7161C212025A6A2AFC0C93B /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = OutdoorLogWatch;
+			packageProductDependencies = (
+			);
+			productName = OutdoorLogWatch;
+			productReference = 72857E3D36DE50BB01C6715F /* OutdoorLogWatch.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AF23A72C74394D8E2FC8E0D4 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					772D66B5244DB892C095F42B = {
+						ProvisioningStyle = Automatic;
+					};
+					D526D8FD519A24D784C8C67C = {
+						ProvisioningStyle = Automatic;
+					};
+					E1B32A441AACA8B32FDD3B1D = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = A320FF06D6BC44A9BBF60AD0 /* Build configuration list for PBXProject "OutdoorLog" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 35914683D044D61D49172993;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 3DBEA1B585FDFDF87B685476 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				D526D8FD519A24D784C8C67C /* OutdoorLog */,
+				772D66B5244DB892C095F42B /* OutdoorLogTests */,
+				E1B32A441AACA8B32FDD3B1D /* OutdoorLogWatch */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		57C364AE04880BA6B0A48390 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5E17842991EBAADF4C56EB1C /* PrivacyInfo.xcprivacy in Resources */,
+				1C8E6CCD017BCE95682ACAE1 /* catalog.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D7161C212025A6A2AFC0C93B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				36BE845E70AAAD1D2450D283 /* OutdoorLogWatchApp.swift in Sources */,
+				19DE7BDCD87415D5215F8D83 /* ProtectedFile.swift in Sources */,
+				32522D34854CFEC8D2F87802 /* WatchArchive.swift in Sources */,
+				527EDDAFC9FE9E9B8209DE79 /* WatchPhoneConnection.swift in Sources */,
+				146D6D1142B0745D57306854 /* WatchRootView.swift in Sources */,
+				84E4C9E480355AEFBE172B95 /* WatchWire.swift in Sources */,
+				857ECB743B492DC7ACFCA7E7 /* WatchWorkoutController.swift in Sources */,
+				8F3FF755A9519A10F7A7D6A8 /* WorkoutModels.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DFC3253B8C733C137304E437 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EF7F3A9FBD3AA40146FAC82F /* CatalogTests.swift in Sources */,
+				0E477BD3B23F7D76A98A737B /* HealthModelTests.swift in Sources */,
+				F82F1FA99BFFD9BCC8231AE2 /* RecordStoreTests.swift in Sources */,
+				F8E6B93BC4DE6F88E8B49143 /* WatchProtocolTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EAD9A587DF459A91332D4502 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9C0754160514335A38233FDB /* CatalogDataSettingsView.swift in Sources */,
+				1C928C2DCBB54C6692B1A563 /* CatalogLocation.swift in Sources */,
+				C344736FFD5DE7C90F0F756A /* CatalogSearch.swift in Sources */,
+				331BFFE363C00261CEA966CE /* CatalogStore.swift in Sources */,
+				A2F88A3DE11E5F6A1A4DE479 /* EquipmentDetailView.swift in Sources */,
+				C97E5DD7755021D64BA6FB63 /* EquipmentPlace.swift in Sources */,
+				DA997D1D807E4E6045C437BD /* ExploreView.swift in Sources */,
+				0FD39400840CEA85CEF24D08 /* HealthLibrary.swift in Sources */,
+				865A80FE0269D9B64F3FCDC2 /* HealthModels.swift in Sources */,
+				85C19E123F52F64A4638A004 /* HealthView.swift in Sources */,
+				2CDC25BB2C0FF152F355C1E7 /* OutdoorLogApp.swift in Sources */,
+				C3DED03968724D5C4566408A /* PhoneWorkoutController.swift in Sources */,
+				4F9E4FF1FD82CD729BA03236 /* ProtectedFile.swift in Sources */,
+				6BC4BDC9A6B94858B2B73A62 /* RecordStore.swift in Sources */,
+				8D4B058ACA29C10003F726EC /* RecordsView.swift in Sources */,
+				684CF1D934D1AAE2EF5AB830 /* WatchLink.swift in Sources */,
+				38A063E973FCDF2826C35815 /* WatchStatusView.swift in Sources */,
+				48A0D32B6F222B5BCE1F3721 /* WatchWire.swift in Sources */,
+				81BC587CD43AB3AADBDAE0C0 /* WorkoutEditor.swift in Sources */,
+				6A2955169745B3940886F055 /* WorkoutModels.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		27FB39C2897AE6070B795152 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E1B32A441AACA8B32FDD3B1D /* OutdoorLogWatch */;
+			targetProxy = 7D5439CDC8F6EDA18FE86C85 /* PBXContainerItemProxy */;
+		};
+		F69D431A53F3DFC890BBDA4E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D526D8FD519A24D784C8C67C /* OutdoorLog */;
+			targetProxy = 7DEA318DD31C2A76B994A6EB /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		41FC46E3F36E6E246BE87F7E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Watch/OutdoorLogWatch.entitlements;
+				INFOPLIST_FILE = Watch/Info.plist;
+				PRODUCT_BUNDLE_IDENTIFIER = app.heznpc.outdoorlog.watchkitapp;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Debug;
+		};
+		4E73E8A7BEF2242564517ECA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				INFOPLIST_FILE = Tests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.heznpc.outdoorlog.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OutdoorLog.app/OutdoorLog";
+			};
+			name = Release;
+		};
+		573333AA8EDCF9D78470F87D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = targeted;
+				SWIFT_VERSION = 5.0;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Debug;
+		};
+		6E252A4D21176FF7C373B974 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = iOS/OutdoorLog.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = iOS/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.heznpc.outdoorlog;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		830EE52D7FA69BBCDC2D556A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				INFOPLIST_FILE = Tests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.heznpc.outdoorlog.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OutdoorLog.app/OutdoorLog";
+			};
+			name = Debug;
+		};
+		BA21201352B3854825CDA42B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = iOS/OutdoorLog.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = iOS/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.heznpc.outdoorlog;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		EED65E0CA2818461CA4BD099 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Watch/OutdoorLogWatch.entitlements;
+				INFOPLIST_FILE = Watch/Info.plist;
+				PRODUCT_BUNDLE_IDENTIFIER = app.heznpc.outdoorlog.watchkitapp;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Release;
+		};
+		F794EEBA42206BC82FBCE21D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = targeted;
+				SWIFT_VERSION = 5.0;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		4636FBA6C408577A117A944D /* Build configuration list for PBXNativeTarget "OutdoorLog" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6E252A4D21176FF7C373B974 /* Debug */,
+				BA21201352B3854825CDA42B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A320FF06D6BC44A9BBF60AD0 /* Build configuration list for PBXProject "OutdoorLog" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				573333AA8EDCF9D78470F87D /* Debug */,
+				F794EEBA42206BC82FBCE21D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		ADF89C71786B08F631A30F62 /* Build configuration list for PBXNativeTarget "OutdoorLogTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				830EE52D7FA69BBCDC2D556A /* Debug */,
+				4E73E8A7BEF2242564517ECA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C3E72D6CCB0DB089F3B355AA /* Build configuration list for PBXNativeTarget "OutdoorLogWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				41FC46E3F36E6E246BE87F7E /* Debug */,
+				EED65E0CA2818461CA4BD099 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = AF23A72C74394D8E2FC8E0D4 /* Project object */;
+}

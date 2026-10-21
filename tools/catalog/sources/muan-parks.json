@@ -1,0 +1,245 @@
+{
+  "source": "data.go.kr/15012890",
+  "regionCode": "46840",
+  "capturedAt": "2026-09-13T04:22:32.156Z",
+  "collection": {
+    "complete": true,
+    "total": 18202,
+    "received": 18202,
+    "pages": 2
+  },
+  "expectedCount": 21,
+  "records": [
+    {
+      "MANAGE_NO": "46840-00023",
+      "PARK_NM": "근린공원 36",
+      "PARK_SE": "근린공원",
+      "RDNMADR": "전남광주통합특별시 무안군 일로읍 오남로 55",
+      "LNMADR": "전남광주통합특별시 무안군 일로읍 오룡리 20",
+      "LATITUDE": "34.80642405",
+      "LONGITUDE": "126.4842218",
+      "MVM_FCLTY": "풋살장+인라인스케이트장+농구장",
+      "REFERENCE_DATE": "2026-07-28"
+    },
+    {
+      "MANAGE_NO": "46840-00022",
+      "PARK_NM": "남악공원",
+      "PARK_SE": "근린공원",
+      "RDNMADR": "전남광주통합특별시 무안군 삼향읍 남악로 210",
+      "LNMADR": "전남광주통합특별시 무안군 삼향읍 남악리 2548",
+      "LATITUDE": "34.80490376",
+      "LONGITUDE": "126.4617122",
+      "MVM_FCLTY": "",
+      "REFERENCE_DATE": "2026-07-28"
+    },
+    {
+      "MANAGE_NO": "46840-00021",
+      "PARK_NM": "죽산 망향공원",
+      "PARK_SE": "근린공원",
+      "RDNMADR": "전남광주통합특별시 무안군 삼향읍 남악4로60번가길 45",
+      "LNMADR": "전남광주통합특별시 무안군 삼향읍 남악리 1498",
+      "LATITUDE": "34.81229022",
+      "LONGITUDE": "126.4691519",
+      "MVM_FCLTY": "야외체력단련시설",
+      "REFERENCE_DATE": "2026-07-28"
+    },
+    {
+      "MANAGE_NO": "46840-00019",
+      "PARK_NM": "운남공원",
+      "PARK_SE": "어린이공원",
+      "RDNMADR": "전남광주통합특별시 무안군 운남면 운해로 589-14",
+      "LNMADR": "전남광주통합특별시 무안군 운남면 연리 406-4",
+      "LATITUDE": "34.96233808",
+      "LONGITUDE": "126.341282",
+      "MVM_FCLTY": "야외체력단련시설+게이트볼장",
+      "REFERENCE_DATE": "2026-07-28"
+    },
+    {
+      "MANAGE_NO": "46840-00018",
+      "PARK_NM": "대죽도 공원",
+      "PARK_SE": "근린공원",
+      "RDNMADR": "전남광주통합특별시 무안군 삼향읍 남악3로 30",
+      "LNMADR": "전남광주통합특별시 무안군 삼향읍 남악리 2286",
+      "LATITUDE": "34.80842315",
+      "LONGITUDE": "126.4609533",
+      "MVM_FCLTY": "야외체력단련시설+테니스장",
+      "REFERENCE_DATE": "2026-07-28"
+    },
+    {
+      "MANAGE_NO": "46840-00017",
+      "PARK_NM": "남악수변공원",
+      "PARK_SE": "근린공원",
+      "RDNMADR": "",
+      "LNMADR": "전남광주통합특별시 무안군 삼향읍 남악리 2621",
+      "LATITUDE": "34.80127165",
+      "LONGITUDE": "126.4604343",
+      "MVM_FCLTY": "야외체력단련시설",
+      "REFERENCE_DATE": "2026-07-28"
+    },
+    {
+      "MANAGE_NO": "46840-00016",
+      "PARK_NM": "해뜨는언덕공원",
+      "PARK_SE": "근린공원",
+      "RDNMADR": "",
+      "LNMADR": "전남광주통합특별시 무안군 삼향읍 남악리 1588",
+      "LATITUDE": "34.8119912",
+      "LONGITUDE": "126.4755946",
+      "MVM_FCLTY": "",
+      "REFERENCE_DATE": "2026-07-28"
+    },
+    {
+      "MANAGE_NO": "46840-00015",
+      "PARK_NM": "남악어린이공원8",
+      "PARK_SE": "어린이공원",
+      "RDNMADR": "전남광주통합특별시 무안군 삼향읍 남악4로34번길 28",
+      "LNMADR": "전남광주통합특별시 무안군 삼향읍 남악리 2312",
+      "LATITUDE": "34.80937553",
+      "LONGITUDE": "126.4687028",
+      "MVM_FCLTY": "",
+      "REFERENCE_DATE": "2026-07-28"
+    },
+    {
+      "MANAGE_NO": "46840-00014",
+      "PARK_NM": "남악어린이공원8",
+      "PARK_SE": "어린이공원",
+      "RDNMADR": "전남광주통합특별시 무안군 삼향읍 남악영산길 9",
+      "LNMADR": "전남광주통합특별시 무안군 삼향읍 남악리 1585",
+      "LATITUDE": "34.813165",
+      "LONGITUDE": "126.473233",
+      "MVM_FCLTY": "",
+      "REFERENCE_DATE": "2026-07-28"
+    },
+    {
+      "MANAGE_NO": "46840-00013",
+      "PARK_NM": "남악어린이공원9",
+      "PARK_SE": "어린이공원",
+      "RDNMADR": "전남광주통합특별시 무안군 삼향읍 남악5로48번길 35",
+      "LNMADR": "전남광주통합특별시 무안군 삼향읍 남악리 1837",
+      "LATITUDE": "34.80897388",
+      "LONGITUDE": "126.4749255",
+      "MVM_FCLTY": "",
+      "REFERENCE_DATE": "2026-07-28"
+    },
+    {
+      "MANAGE_NO": "46840-00012",
+      "PARK_NM": "남악어린이공원7",
+      "PARK_SE": "어린이공원",
+      "RDNMADR": "전남광주통합특별시 무안군 삼향읍 남악4로46번길 26",
+      "LNMADR": "전남광주통합특별시 무안군 삼향읍 남악리 2324",
+      "LATITUDE": "34.80715063",
+      "LONGITUDE": "126.4685167",
+      "MVM_FCLTY": "",
+      "REFERENCE_DATE": "2026-07-28"
+    },
+    {
+      "MANAGE_NO": "46840-00011",
+      "PARK_NM": "무안 성내 소공원",
+      "PARK_SE": "소공원",
+      "RDNMADR": "전남광주통합특별시 무안군 무안읍 성내1길 32",
+      "LNMADR": "전남광주통합특별시 무안군 무안읍 성내리 59",
+      "LATITUDE": "34.99216959",
+      "LONGITUDE": "126.4759436",
+      "MVM_FCLTY": "야외체력단련시설",
+      "REFERENCE_DATE": "2026-07-28"
+    },
+    {
+      "MANAGE_NO": "46840-00010",
+      "PARK_NM": "일로 월암 소공원 2",
+      "PARK_SE": "소공원",
+      "RDNMADR": "전남광주통합특별시 무안군 일로읍 월암길 13-3",
+      "LNMADR": "전남광주통합특별시 무안군 일로읍 월암리 206-15",
+      "LATITUDE": "34.85077666",
+      "LONGITUDE": "126.493009",
+      "MVM_FCLTY": "야외체력단련시설",
+      "REFERENCE_DATE": "2026-07-28"
+    },
+    {
+      "MANAGE_NO": "46840-00009",
+      "PARK_NM": "일로 월암 소공원 1",
+      "PARK_SE": "소공원",
+      "RDNMADR": "전남광주통합특별시 무안군 일로읍 월암길 50",
+      "LNMADR": "전남광주통합특별시 무안군 일로읍 월암리 326-1",
+      "LATITUDE": "34.851246",
+      "LONGITUDE": "126.496286",
+      "MVM_FCLTY": "야외체력단련시설",
+      "REFERENCE_DATE": "2026-07-28"
+    },
+    {
+      "MANAGE_NO": "46840-00008",
+      "PARK_NM": "청계 도림 소공원",
+      "PARK_SE": "소공원",
+      "RDNMADR": "전남광주통합특별시 무안군 청계면 도림길 33-14",
+      "LNMADR": "전남광주통합특별시 무안군 청계면 도림리 529-60",
+      "LATITUDE": "34.91301785",
+      "LONGITUDE": "126.4306696",
+      "MVM_FCLTY": "야외체력단련시설",
+      "REFERENCE_DATE": "2026-07-28"
+    },
+    {
+      "MANAGE_NO": "46840-00007",
+      "PARK_NM": "현경 외반 소공원",
+      "PARK_SE": "소공원",
+      "RDNMADR": "전남광주통합특별시 무안군 현경면 현중길 12",
+      "LNMADR": "전남광주통합특별시 무안군 현경면 외반리 575-1",
+      "LATITUDE": "35.02224668",
+      "LONGITUDE": "126.4120336",
+      "MVM_FCLTY": "",
+      "REFERENCE_DATE": "2026-07-28"
+    },
+    {
+      "MANAGE_NO": "46840-00006",
+      "PARK_NM": "목동 소공원",
+      "PARK_SE": "소공원",
+      "RDNMADR": "전남광주통합특별시 무안군 망운면 목동1길 18",
+      "LNMADR": "전남광주통합특별시 무안군 망운면 목동리 435",
+      "LATITUDE": "35.01447175",
+      "LONGITUDE": "126.3928994",
+      "MVM_FCLTY": "",
+      "REFERENCE_DATE": "2026-07-28"
+    },
+    {
+      "MANAGE_NO": "46840-00003",
+      "PARK_NM": "망운목동공원",
+      "PARK_SE": "근린공원",
+      "RDNMADR": "",
+      "LNMADR": "전남광주통합특별시 무안군 망운면 목동리 506-2",
+      "LATITUDE": "35.01307082",
+      "LONGITUDE": "126.3942787",
+      "MVM_FCLTY": "",
+      "REFERENCE_DATE": "2026-07-28"
+    },
+    {
+      "MANAGE_NO": "46840-00002",
+      "PARK_NM": "일로공원",
+      "PARK_SE": "근린공원",
+      "RDNMADR": "",
+      "LNMADR": "전남광주통합특별시 무안군 일로읍 월암리 186-410",
+      "LATITUDE": "34.84822267",
+      "LONGITUDE": "126.492141",
+      "MVM_FCLTY": "다목적운동장",
+      "REFERENCE_DATE": "2026-07-28"
+    },
+    {
+      "MANAGE_NO": "46840-00001",
+      "PARK_NM": "불무공원",
+      "PARK_SE": "근린공원",
+      "RDNMADR": "",
+      "LNMADR": "전남광주통합특별시 무안군 무안읍 교촌리 127-21",
+      "LATITUDE": "34.98936268",
+      "LONGITUDE": "126.4736134",
+      "MVM_FCLTY": "야외체력단련시설",
+      "REFERENCE_DATE": "2026-07-28"
+    },
+    {
+      "MANAGE_NO": "46840-00024",
+      "PARK_NM": "오룡어린이공원42",
+      "PARK_SE": "어린이공원",
+      "RDNMADR": "전남광주통합특별시 무안군 오룡번영로 2길",
+      "LNMADR": "전남광주통합특별시 무안군 일로읍 오룡리 224",
+      "LATITUDE": "34.80262195",
+      "LONGITUDE": "126.4788383",
+      "MVM_FCLTY": "",
+      "REFERENCE_DATE": "2026-07-28"
+    }
+  ]
+}

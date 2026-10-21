@@ -1,0 +1,27 @@
+{
+  "gimhae": {
+    "sourceURL": "https://www.data.go.kr/data/15104705/fileData.do",
+    "downloadURL": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000007686398&fileDetailSn=1&insertDataPrcus=N",
+    "capturedAt": "2026-10-22",
+    "referenceDate": "2026-09-18",
+    "pageModifiedDate": "2026-09-21",
+    "encoding": "cp949",
+    "rowCount": 521,
+    "sha256": "c3969641bc97ddb5fc7eb6ccfde1e076d0228d2b90e1e94982d24e97726131c7"
+  },
+  "muan": {
+    "sourceFile": "sources/muan-parks.json",
+    "sourceURL": "https://www.data.go.kr/data/15012890/standard.do",
+    "capturedAt": "2026-09-13T04:22:32.156Z",
+    "rowCount": 21,
+    "sha256": "9e61fd65a19f17721f0c57ec31f62ff25977aa8fc4bd11af6074cb601099bb1a"
+  },
+  "bundle": {
+    "places": 542,
+    "equipmentPlaces": 521,
+    "parkFallbackPlaces": 21,
+    "missingCoordinates": 29,
+    "sha256": "d5d4719780ef431ec21ba7d7c7bc1bfbc3f4ea55b93e40bfb3d74a26b422d0d6",
+    "byteCount": 891061
+  }
+}
