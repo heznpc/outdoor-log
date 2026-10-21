@@ -2,7 +2,7 @@ import SwiftUI
 
 @main
 struct OutdoorLogApp: App {
-  @State private var catalog = CatalogStore()
+  @State private var catalog = CatalogStore(loadImmediately: false)
   @State private var records = RecordStore()
   @State private var health = HealthLibrary()
   @State private var recorder = PhoneWorkoutController()
@@ -26,7 +26,7 @@ private struct OutdoorLogRoot: View {
   @Environment(\.scenePhase) private var scenePhase
 
   private var places: [PlaceChoice] {
-    catalog.places.map { PlaceChoice(id: $0.id, name: $0.name) }
+    catalog.recordPlaceChoices
   }
 
   var body: some View {
@@ -60,6 +60,7 @@ private struct OutdoorLogRoot: View {
     .task {
       watch.onCompleted = { record in records.acceptWatch(record) }
       watch.activate()
+      await catalog.loadIfNeeded()
     }
     .onChange(of: scenePhase) { _, phase in
       if phase == .active {
@@ -70,6 +71,7 @@ private struct OutdoorLogRoot: View {
         health.clearReadResults()
       }
     }
+    .environment(\.workoutPlaceCatalogRevision, catalog.revision)
   }
 }
 

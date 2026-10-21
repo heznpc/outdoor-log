@@ -42,6 +42,11 @@
 		EF7F3A9FBD3AA40146FAC82F /* CatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020668BB22285334BE48404C /* CatalogTests.swift */; };
 		F82F1FA99BFFD9BCC8231AE2 /* RecordStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF9DE24D86B3C9FB55DE6669 /* RecordStoreTests.swift */; };
 		F8E6B93BC4DE6F88E8B49143 /* WatchProtocolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC6190017270B2396118EEE2 /* WatchProtocolTests.swift */; };
+		312C015CC52D8ACB236A3A24 /* CatalogDownload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D0CF073C50EEAC65C07BE98 /* CatalogDownload.swift */; };
+		97E389BD42637A2A9AFE66D8 /* CatalogMerge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC1EAF9D4AFC41110511C9D /* CatalogMerge.swift */; };
+		387008EB2C096AA5FC43CB95 /* NationalEquipment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D32D514F8BAE792675E6817 /* NationalEquipment.swift */; };
+		D9F4FE31FC3DD878CEB52EF4 /* CatalogMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 983C28F7714D822F017D0433 /* CatalogMigrationTests.swift */; };
+		B2F58173EEC67A4F74E0B980 /* NationalEquipmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89520CA25D404C15D9DAB7AE /* NationalEquipmentTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -111,6 +116,11 @@
 		DFC1216246B51B3C8CEFEEA3 /* CatalogLocation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogLocation.swift; sourceTree = "<group>"; };
 		EE5800AC6387D1F38F4FC86C /* EquipmentPlace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EquipmentPlace.swift; sourceTree = "<group>"; };
 		F4C487C2CE5D5BD794098FA8 /* OutdoorLogTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = OutdoorLogTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4D0CF073C50EEAC65C07BE98 /* CatalogDownload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogDownload.swift; sourceTree = "<group>"; };
+		0FC1EAF9D4AFC41110511C9D /* CatalogMerge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogMerge.swift; sourceTree = "<group>"; };
+		1D32D514F8BAE792675E6817 /* NationalEquipment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NationalEquipment.swift; sourceTree = "<group>"; };
+		983C28F7714D822F017D0433 /* CatalogMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogMigrationTests.swift; sourceTree = "<group>"; };
+		89520CA25D404C15D9DAB7AE /* NationalEquipmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NationalEquipmentTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -163,6 +173,8 @@
 		3B58B10F49B3C1CF4B58A199 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				89520CA25D404C15D9DAB7AE /* NationalEquipmentTests.swift */,
+				983C28F7714D822F017D0433 /* CatalogMigrationTests.swift */,
 				020668BB22285334BE48404C /* CatalogTests.swift */,
 				31B594DABF91CE82911DE04D /* HealthModelTests.swift */,
 				AC83BE777241628DE35283B0 /* Info.plist */,
@@ -226,6 +238,9 @@
 		ADD9A18350BCC26E0092E1C6 /* Catalog */ = {
 			isa = PBXGroup;
 			children = (
+				1D32D514F8BAE792675E6817 /* NationalEquipment.swift */,
+				0FC1EAF9D4AFC41110511C9D /* CatalogMerge.swift */,
+				4D0CF073C50EEAC65C07BE98 /* CatalogDownload.swift */,
 				2EC4958F6619621738E2F391 /* CatalogDataSettingsView.swift */,
 				DFC1216246B51B3C8CEFEEA3 /* CatalogLocation.swift */,
 				7198F055C825006F3F1BEA78 /* CatalogSearch.swift */,
@@ -385,6 +400,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B2F58173EEC67A4F74E0B980 /* NationalEquipmentTests.swift in Sources */,
+				D9F4FE31FC3DD878CEB52EF4 /* CatalogMigrationTests.swift in Sources */,
 				EF7F3A9FBD3AA40146FAC82F /* CatalogTests.swift in Sources */,
 				0E477BD3B23F7D76A98A737B /* HealthModelTests.swift in Sources */,
 				F82F1FA99BFFD9BCC8231AE2 /* RecordStoreTests.swift in Sources */,
@@ -396,6 +413,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				387008EB2C096AA5FC43CB95 /* NationalEquipment.swift in Sources */,
+				97E389BD42637A2A9AFE66D8 /* CatalogMerge.swift in Sources */,
+				312C015CC52D8ACB236A3A24 /* CatalogDownload.swift in Sources */,
 				9C0754160514335A38233FDB /* CatalogDataSettingsView.swift in Sources */,
 				1C928C2DCBB54C6692B1A563 /* CatalogLocation.swift in Sources */,
 				C344736FFD5DE7C90F0F756A /* CatalogSearch.swift in Sources */,

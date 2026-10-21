@@ -1,0 +1,11 @@
+{
+  "sourceID": "data-go-kr:15139207",
+  "provider": "공공데이터포털 · 전국 지방자치단체",
+  "datasetTitle": "전국실외운동기구설치정보표준데이터",
+  "sourceURL": "https://www.data.go.kr/data/15139207/standard.do",
+  "capturedAt": "2026-10-22",
+  "license": "공공데이터포털 공개 표준데이터. 제공기관별 이용허락범위는 원자료에서 확인하세요.",
+  "note": "제공기관이 공개한 설치장소 자료이며 전국 모든 지역의 완전한 목록은 아닙니다. 시설 대표 좌표이며 현장 위치·운영·고장·철거 여부는 미확인입니다.",
+  "idPrefix": "national-equipment-",
+  "coordinateQuality": "facility"
+}

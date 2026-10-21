@@ -9,6 +9,7 @@ import MapKit
   @State private var region = ""
   @State private var equipmentKind = ""
   @State private var favoritesOnly = false
+  @State private var includeParkReferences = false
   @State private var viewMode = 0
   @State private var sortByDistance = true
   @State private var sheet: ExploreSheet?
@@ -19,9 +20,13 @@ import MapKit
   private let pinLimit = 100
 
   private enum ExploreSheet: Identifiable {
-    case data, place(EquipmentPlace)
+    case data, equipment, place(EquipmentPlace)
     var id: String {
-      switch self { case .data: return "data"; case .place(let place): return place.id }
+      switch self {
+      case .data: return "data"
+      case .equipment: return "equipment-filter"
+      case .place(let place): return place.id
+      }
     }
   }
 
@@ -29,13 +34,19 @@ import MapKit
     let origin = sortByDistance ? location.usableLocation : nil
     return CatalogSearchQuery(revision: store.revision, text: query, region: region,
       equipmentKind: equipmentKind, favoritesOnly: favoritesOnly, favorites: store.favoriteIDs,
-      latitude: origin?.coordinate.latitude, longitude: origin?.coordinate.longitude)
+      latitude: origin?.coordinate.latitude, longitude: origin?.coordinate.longitude,
+      includeParkReferences: includeParkReferences)
   }
 
   var body: some View {
     NavigationStack {
       VStack(spacing: 0) {
         controls
+        if favoritesOnly, !store.unavailableFavoriteIDs.isEmpty {
+          Text("현재 자료에 없는 즐겨찾기 \(store.unavailableFavoriteIDs.count)곳 · 보존됨")
+            .font(.footnote).foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal).padding(.bottom, 8)
+        }
         if let error = store.errorMessage {
           HStack(alignment: .top) {
             Image(systemName: "exclamationmark.triangle")
@@ -45,11 +56,14 @@ import MapKit
           }
           .padding().background(.yellow.opacity(0.12))
         }
-        if store.places.isEmpty {
+        if store.isRefreshing && store.places.isEmpty {
+          ProgressView(store.updateProgress.isEmpty ? "장소 목록 불러오는 중" : store.updateProgress)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if store.places.isEmpty {
           ContentUnavailableView {
             Label("장소 목록이 없습니다", systemImage: "map")
           } description: {
-            Text("다시 불러오거나 데이터 설정에서 공개 데이터 파일을 가져오세요.")
+            Text("데이터 설정에서 전국 공개 자료를 받거나 공개 데이터 파일을 가져오세요.")
           } actions: {
             Button("다시 불러오기") { Task { await store.reload() } }
             Button("데이터 설정") { sheet = .data }
@@ -60,9 +74,12 @@ import MapKit
           ContentUnavailableView {
             Label("검색 결과가 없습니다", systemImage: "magnifyingglass")
           } description: {
-            Text(favoritesOnly ? "즐겨찾기에 추가한 장소와 검색 조건을 확인하세요." : "지역·기구·검색어를 바꿔보세요. 등록되지 않은 지역은 데이터 파일로 추가할 수 있습니다.")
+            Text(favoritesOnly ? "즐겨찾기에 추가한 장소와 검색 조건을 확인하세요. 현재 목록에 없는 장소는 나타나지 않을 수 있습니다." : "지역·기구·검색어를 바꿔보세요. 포함 지역은 공개 자료에 따라 다릅니다. 데이터 설정에서 갱신 현황을 확인할 수 있습니다.")
           } actions: {
-            Button("검색 조건 초기화") { query = ""; region = ""; equipmentKind = ""; favoritesOnly = false }
+            Button("검색 조건 초기화") {
+              query = ""; region = ""; equipmentKind = ""; favoritesOnly = false; includeParkReferences = false
+            }
+            Button("데이터 설정") { sheet = .data }
           }
         } else if viewMode == 0 {
           placesList(results)
@@ -78,10 +95,16 @@ import MapKit
         isSearching = true
         do {
           try await Task.sleep(for: .milliseconds(180))
-          let found = await Task.detached(priority: .userInitiated) {
+          let search = Task.detached(priority: .userInitiated) {
             CatalogSearch.results(in: snapshot, query: request)
-          }.value
+          }
+          let found = await withTaskCancellationHandler {
+            await search.value
+          } onCancel: {
+            search.cancel()
+          }
           try Task.checkCancellation()
+          guard request == searchQuery else { return }
           results = found
           isSearching = false
         } catch { /* A newer query owns the loading state. */ }
@@ -108,6 +131,7 @@ import MapKit
         NavigationStack {
           switch item {
           case .data: CatalogDataSettingsView(store: store)
+          case .equipment: EquipmentKindPicker(store: store, selection: $equipmentKind)
           case .place(let place):
             EquipmentDetailView(place: place, store: store) { id, name in
               pendingRecord = (id: id, name: name)
@@ -133,16 +157,23 @@ import MapKit
             Label(region.isEmpty ? "모든 지역" : store.regions.first(where: { $0.code == region })?.name ?? "선택 지역",
               systemImage: "map")
           }
-          Menu {
-            Picker("운동기구 종류", selection: $equipmentKind) {
-              Text("모든 기구 · 미확인 포함").tag("")
-              ForEach(store.equipmentKinds, id: \.self) { Text($0).tag($0) }
-            }
-          } label: { Label(equipmentKind.isEmpty ? "기구 종류" : equipmentKind, systemImage: "dumbbell") }
+          Button { sheet = .equipment } label: {
+            Label(equipmentKind.isEmpty ? "기구 종류" : equipmentKind, systemImage: "dumbbell")
+              .lineLimit(1).frame(maxWidth: 240, minHeight: 44, alignment: .leading)
+          }
+          .accessibilityLabel("운동기구 종류 필터")
+          .accessibilityValue(equipmentKind.isEmpty ? "모든 기구, 미확인 포함" : equipmentKind)
+          .accessibilityHint("기구 이름을 검색해 선택합니다")
           Button { favoritesOnly.toggle() } label: {
             Label("즐겨찾기", systemImage: favoritesOnly ? "star.fill" : "star")
           }
           .accessibilityValue(favoritesOnly ? "즐겨찾기만 표시" : "전체 표시")
+          Toggle(isOn: Binding(get: { includeParkReferences || favoritesOnly }, set: { includeParkReferences = $0 })) {
+            Label("공원 참조 포함", systemImage: "tree")
+          }
+          .toggleStyle(.button)
+          .disabled(favoritesOnly)
+          .accessibilityHint("개별 운동기구가 확인되지 않은 공원 자료를 함께 표시합니다. 즐겨찾기에서는 공원도 항상 포함합니다.")
           Menu {
             Picker("정렬", selection: $sortByDistance) {
               Text("가까운 순 · 위치 필요").tag(true)
@@ -190,7 +221,7 @@ import MapKit
           }
         }
       } footer: {
-        Text("공개 데이터에 등록된 장소만 표시합니다. 기구의 현재 상태·이용 가능 여부는 미확인입니다. 거리는 대표 좌표까지의 직선거리입니다.")
+        Text("공개 자료에 등록된 장소만 표시하며 모든 지역·시설을 포함하지는 않습니다. 공원 참조는 운동기구 설치를 뜻하지 않습니다. 기구의 현재 상태·이용 가능 여부는 미확인이고, 거리는 대표 좌표까지의 직선거리입니다.")
       }
     }.listStyle(.plain)
       .refreshable { await store.reload() }
@@ -207,8 +238,8 @@ import MapKit
           Text("현재 정렬의 앞 \(pinLimit)곳을 표시합니다. 지역·기구·검색어로 범위를 좁히거나 목록에서 전체 결과를 확인하세요.")
             .font(.caption).foregroundStyle(.secondary)
         }
-        if displayed.contains(where: { $0.coordinateQuality == .park }) {
-          Text("공원 대표 위치는 개별 운동기구 위치가 아닙니다.").font(.caption).foregroundStyle(.secondary)
+        if displayed.contains(where: \.isParkReference) {
+          Text("공원 참조의 좌표는 운동기구 위치나 설치 여부를 뜻하지 않습니다.").font(.caption).foregroundStyle(.secondary)
         }
       }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal).padding(.bottom, 8)
       if displayed.isEmpty {
@@ -236,6 +267,123 @@ import MapKit
   }
 }
 
+@MainActor private struct EquipmentKindPicker: View {
+  let store: CatalogStore
+  @Binding var selection: String
+  @Environment(\.dismiss) private var dismiss
+  @State private var query = ""
+  @State private var results: [String] = []
+  @State private var totalMatches = 0
+  @State private var completedRequest: SearchRequest?
+  private let resultLimit = 60
+
+  private struct SearchRequest: Equatable, Sendable {
+    let text: String
+    let revision: Int
+  }
+
+  private var searchRequest: SearchRequest {
+    SearchRequest(text: query.trimmingCharacters(in: .whitespacesAndNewlines), revision: store.revision)
+  }
+
+  var body: some View {
+    List {
+      Section("현재 선택") {
+        Text(selection.isEmpty ? "모든 기구 · 미확인 포함" : selection)
+          .fixedSize(horizontal: false, vertical: true)
+          .accessibilityLabel("현재 선택: \(selection.isEmpty ? "모든 기구, 미확인 포함" : selection)")
+        if !selection.isEmpty {
+          if !store.equipmentKinds.contains(selection) {
+            Text("현재 자료에 없는 기구 조건도 유지됩니다. 다른 기구를 선택하거나 필터를 해제할 수 있습니다.")
+              .font(.footnote).foregroundStyle(.secondary)
+          }
+          Button("기구 필터 해제") { selection = ""; dismiss() }
+            .frame(minHeight: 44)
+            .accessibilityHint("모든 기구와 기구가 미확인인 장소를 포함합니다")
+        }
+      }
+      Section {
+        if completedRequest != searchRequest {
+          ProgressView("기구 검색 중")
+        } else if store.isRefreshing && store.equipmentKinds.isEmpty {
+          ProgressView("기구 목록 불러오는 중")
+        } else if results.isEmpty {
+          if store.equipmentKinds.isEmpty {
+            Text("등록된 기구 종류가 없습니다.").foregroundStyle(.secondary)
+          } else {
+            ContentUnavailableView.search(text: query)
+          }
+        } else {
+          ForEach(results, id: \.self) { kind in
+            Button {
+              selection = kind
+              dismiss()
+            } label: {
+              HStack(alignment: .top) {
+                Text(kind).foregroundStyle(.primary).fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                if kind == selection { Image(systemName: "checkmark").accessibilityHidden(true) }
+              }
+              .frame(minHeight: 44, alignment: .leading)
+              .contentShape(Rectangle())
+            }
+            .accessibilityLabel(kind)
+            .accessibilityValue(kind == selection ? "현재 선택" : "")
+            .accessibilityHint("이 기구로 장소 목록을 필터링합니다")
+          }
+        }
+      } header: {
+        Text("기구 종류 검색")
+      } footer: {
+        if completedRequest == searchRequest {
+          if totalMatches > resultLimit {
+            Text("검색 결과 \(totalMatches)개 중 앞 \(resultLimit)개입니다. 기구 이름을 더 입력해 범위를 좁혀주세요.")
+          } else {
+            Text("검색 결과 \(totalMatches)개")
+          }
+        }
+      }
+    }
+    .navigationTitle("기구 종류 선택")
+    .navigationBarTitleDisplayMode(.inline)
+    .searchable(text: $query, prompt: "기구 이름 검색")
+    .scrollDismissesKeyboard(.interactively)
+    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("닫기") { dismiss() } } }
+    .task(id: searchRequest) {
+      let request = searchRequest
+      let snapshot = store.equipmentKinds
+      let limit = resultLimit
+      do {
+        if !request.text.isEmpty { try await Task.sleep(for: .milliseconds(180)) }
+        let search = Task.detached(priority: .userInitiated) { () -> (kinds: [String], count: Int) in
+          let terms = request.text.split(whereSeparator: \.isWhitespace).map(String.init)
+          if terms.isEmpty { return (Array(snapshot.prefix(limit)), snapshot.count) }
+          var found: [String] = []
+          var count = 0
+          for kind in snapshot {
+            if Task.isCancelled { return ([], 0) }
+            if terms.allSatisfy({ kind.range(of: $0, options: [.caseInsensitive, .diacriticInsensitive]) != nil }) {
+              count += 1
+              if found.count < limit { found.append(kind) }
+            }
+          }
+          return (found, count)
+        }
+        let found = await withTaskCancellationHandler {
+          await search.value
+        } onCancel: {
+          search.cancel()
+        }
+        try Task.checkCancellation()
+        guard request == searchRequest else { return }
+        results = found.kinds
+        totalMatches = found.count
+        completedRequest = request
+      } catch { /* Only the current query and catalog revision publish results. */ }
+    }
+  }
+}
+
 private struct CatalogPlaceRow: View {
   let place: EquipmentPlace
   let favorite: Bool
@@ -249,6 +397,7 @@ private struct CatalogPlaceRow: View {
       }
       Text(place.address.isEmpty ? "주소 미제공" : place.address).font(.subheadline).foregroundStyle(.secondary)
       Text(place.equipmentSummary).font(.subheadline)
+      Text(place.coverageTitle).font(.caption.weight(.medium)).foregroundStyle(.secondary)
       HStack {
         Text(place.coordinateQuality.title)
         if let distance { Text(distance < 1000 ? "약 \(Int(distance.rounded()))m" : "약 \((distance / 1000).formatted(.number.precision(.fractionLength(1))))km") }

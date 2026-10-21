@@ -56,6 +56,19 @@ struct EquipmentPlace: Identifiable, Codable, Sendable {
   var managingDepartment: String?
   var provenance: PlaceProvenance
 
+  var isNationalEquipment: Bool {
+    id.hasPrefix("national-equipment-") && provenance.sourceURL == NationalEquipment.sourceURL
+  }
+
+  var isParkReference: Bool {
+    coordinateQuality == .park || provenance.datasetTitle.contains("도시공원")
+  }
+
+  var coverageTitle: String {
+    if isParkReference { return "공원 참고 자료 · 기구 설치 미확인" }
+    return equipment.isEmpty ? "설치 장소 · 기구 종류 미제공" : "공개 기구 목록 있음"
+  }
+
   var coordinate: CLLocationCoordinate2D? {
     guard let latitude, let longitude, latitude.isFinite, longitude.isFinite,
       (-90...90).contains(latitude), (-180...180).contains(longitude),
@@ -102,6 +115,22 @@ struct CatalogPack: Codable, Sendable {
   var version: Int
   var generatedAt: String
   var places: [EquipmentPlace]
+  // Optional so existing schema-1 snapshots remain readable.
+  var sources: [CatalogSourceSummary]? = nil
+}
+
+struct CatalogSourceSummary: Codable, Sendable {
+  var id: String
+  var capturedAt: String
+  var rowCount: Int
+  var placeCount: Int
+  var missingCoordinateCount: Int
+  var regions: [String]
+  // Optional for schema-1 caches that did not distinguish full and partial inputs.
+  // Last verified full download or trusted bundled snapshot.
+  var completeCapturedAt: String? = nil
+  // Last partial file input still represented in the merged source.
+  var partialCapturedAt: String? = nil
 }
 
 struct CatalogManifest: Codable, Sendable {
@@ -164,6 +193,7 @@ enum CatalogValidation {
     guard pack.version > 0, !pack.generatedAt.isEmpty,
       pack.places.count <= maximumPlaces else { throw CatalogError.invalid("버전 또는 장소 수 오류") }
     var ids = Set<String>()
+    var validatedCaptureDates = Set<String>()
     for place in pack.places {
       guard !place.id.isEmpty, place.id.count <= 200, ids.insert(place.id).inserted,
         !place.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -179,12 +209,51 @@ enum CatalogValidation {
         !place.provenance.sourceRecordID.isEmpty, !place.provenance.capturedAt.isEmpty,
         !place.provenance.license.isEmpty else { throw CatalogError.invalid("누락·중복 또는 유효하지 않은 장소 정보") }
       _ = try httpsURL(place.provenance.sourceURL)
+      if place.isNationalEquipment, validatedCaptureDates.insert(place.provenance.capturedAt).inserted {
+        guard CatalogMerge.captureDate(place.provenance.capturedAt) != nil else {
+          throw CatalogError.invalid("전국 장소의 수집 시각 형식 오류")
+        }
+      }
       let bothMissing = place.latitude == nil && place.longitude == nil
       if bothMissing {
         guard place.coordinateQuality == .unknown else { throw CatalogError.invalid("좌표 없는 장소의 품질 표시 오류") }
       } else {
         guard place.coordinate != nil else { throw CatalogError.invalid("위경도 범위 또는 좌표 품질 오류") }
       }
+    }
+    guard (pack.sources?.count ?? 0) <= 100 else {
+      throw CatalogError.invalid("출처 수가 허용 범위를 초과합니다")
+    }
+    var sourceIDs = Set<String>()
+    for source in pack.sources ?? [] {
+      guard !source.id.isEmpty, sourceIDs.insert(source.id).inserted,
+        !source.capturedAt.isEmpty, (0...maximumPlaces).contains(source.rowCount),
+        (0...maximumPlaces).contains(source.placeCount),
+        (0...source.placeCount).contains(source.missingCoordinateCount),
+        source.regions.count <= 1000, source.regions.allSatisfy({ !$0.isEmpty && $0.count <= 200 })
+      else { throw CatalogError.invalid("출처별 수집 정보 오류") }
+      for timestamp in [source.completeCapturedAt, source.partialCapturedAt].compactMap({ $0 })
+        where validatedCaptureDates.insert(timestamp).inserted {
+        guard CatalogMerge.captureDate(timestamp) != nil else {
+          throw CatalogError.invalid("출처별 수집 시각 형식 오류")
+        }
+      }
+      if source.id == NationalEquipment.sourceID {
+        if validatedCaptureDates.insert(source.capturedAt).inserted {
+          guard CatalogMerge.captureDate(source.capturedAt) != nil else {
+            throw CatalogError.invalid("전국 자료의 수집 시각 형식 오류")
+          }
+        }
+        let matching = pack.places.filter(\.isNationalEquipment)
+        guard source.rowCount > 0, source.placeCount > 0,
+          matching.count == source.placeCount,
+          matching.filter({ $0.coordinate == nil }).count == source.missingCoordinateCount,
+          Set(matching.map(\.regionName)) == Set(source.regions)
+        else { throw CatalogError.invalid("전국 자료의 장소 수·지역 집계 불일치") }
+      }
+    }
+    if pack.places.contains(where: \.isNationalEquipment), !sourceIDs.contains(NationalEquipment.sourceID) {
+      throw CatalogError.invalid("전국 자료의 출처별 수집 정보가 없습니다")
     }
   }
 

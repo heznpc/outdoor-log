@@ -58,6 +58,24 @@ final class CatalogTests: XCTestCase {
     XCTAssertNil(partial.coordinate)
   }
 
+  func testNationalPlacesRequireSourceSummaryButLegacyCatalogsStillLoad() throws {
+    var national = fixture()
+    national.id = "national-equipment-fixture"
+    national.provenance.sourceURL = NationalEquipment.sourceURL
+    XCTAssertThrowsError(try CatalogValidation.validate(pack([national])))
+    XCTAssertNoThrow(try CatalogValidation.validate(pack([fixture()])))
+    var catalog = pack([national])
+    catalog.sources = [CatalogSourceSummary(id: NationalEquipment.sourceID,
+      capturedAt: "2026-10-22", rowCount: 1, placeCount: 1,
+      missingCoordinateCount: 0, regions: [national.regionName])]
+    XCTAssertNoThrow(try CatalogValidation.validate(catalog))
+    catalog.sources?[0].capturedAt = "invalid"
+    XCTAssertThrowsError(try CatalogValidation.validate(catalog))
+    catalog.sources?[0].capturedAt = "2026-10-22"
+    catalog.places[0].provenance.capturedAt = "invalid"
+    XCTAssertThrowsError(try CatalogValidation.validate(catalog))
+  }
+
   func testRejectsInvalidCoordinatesAndNegativeCount() throws {
     var place = fixture()
     place.latitude = 91

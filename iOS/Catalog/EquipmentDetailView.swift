@@ -12,6 +12,12 @@ import MapKit
         Text(place.name).font(.title2.bold()).textSelection(.enabled)
         Text(place.address.isEmpty ? "주소 미제공" : place.address).textSelection(.enabled)
         Label(place.regionName + (place.locality.map { " · \($0)" } ?? ""), systemImage: "map")
+        Label(place.coverageTitle, systemImage: place.isParkReference ? "tree" : "dumbbell")
+          .font(.subheadline).foregroundStyle(.secondary)
+        if place.isParkReference {
+          Text("공원 자료를 참고한 장소입니다. 운동기구 설치 여부는 확인되지 않았습니다.")
+            .font(.footnote).foregroundStyle(.secondary)
+        }
         Button { onRecord(place.id, place.name) } label: {
           Label("이 장소에서 운동 기록", systemImage: "plus.circle.fill")
         }.buttonStyle(.borderedProminent).padding(.vertical, 6)
@@ -42,16 +48,25 @@ import MapKit
         }
       }
       Section("운동기구") {
+        if let total = place.equipmentCount { LabeledContent("공개된 기구 총수량", value: "\(total)개") }
+        if place.isNationalEquipment {
+          Text("기구명은 제공기관의 원문입니다. 여러 기구가 묶여 있는 이름의 수량을 기구별 개수로 나눌 수는 없습니다. 중복 여부가 불분명한 자료는 총수량을 합산하지 않습니다.")
+            .font(.footnote).foregroundStyle(.secondary)
+        }
         if place.equipmentInformationKnown {
-          if let total = place.equipmentCount { LabeledContent("공개된 기구 총수량", value: "\(total)개") }
           ForEach(Array(place.equipment.enumerated()), id: \.offset) { _, item in
             LabeledContent(item.name, value: item.count.map { "\($0)개" } ?? "수량 미확인")
           }
           if place.equipment.isEmpty { Text("제공된 기구 목록이 없습니다.").foregroundStyle(.secondary) }
         } else {
-          Text("개별 운동기구의 종류와 수량을 확인할 수 없습니다.")
-          Text("공원 시설 항목에 야외체력단련시설이 표시되어도 개별 기구나 현재 이용 가능 여부는 확인되지 않았습니다.")
-            .font(.subheadline).foregroundStyle(.secondary)
+          Text("개별 운동기구의 종류와 기구별 수량을 확인할 수 없습니다.")
+          if place.isParkReference {
+            Text("공원 시설 항목에 야외체력단련시설이 표시되어도 개별 기구나 현재 이용 가능 여부는 확인되지 않았습니다.")
+              .font(.subheadline).foregroundStyle(.secondary)
+          } else {
+            Text("원자료의 시설 정보만으로 개별 기구 목록을 추정하지 않습니다.")
+              .font(.subheadline).foregroundStyle(.secondary)
+          }
         }
         if !place.facilityTypes.isEmpty {
           LabeledContent("원자료 시설 분류", value: place.facilityTypes.joined(separator: " · "))

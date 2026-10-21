@@ -17,11 +17,52 @@
     "sha256": "9e61fd65a19f17721f0c57ec31f62ff25977aa8fc4bd11af6074cb601099bb1a"
   },
   "bundle": {
-    "places": 542,
-    "equipmentPlaces": 521,
+    "places": 7400,
+    "equipmentPlaces": 7379,
     "parkFallbackPlaces": 21,
-    "missingCoordinates": 29,
-    "sha256": "d5d4719780ef431ec21ba7d7c7bc1bfbc3f4ea55b93e40bfb3d74a26b422d0d6",
-    "byteCount": 891061
+    "missingCoordinates": 3165,
+    "sha256": "c4b7b60d56209bfd4811520ae2e959bcc69aacaf5b88c8d62f1bc129bdd63693",
+    "byteCount": 13482804
+  },
+  "national": {
+    "sourceURL": "https://www.data.go.kr/data/15139207/standard.do",
+    "headerURL": "https://www.data.go.kr/download/columList.json?pk=15139207&ext=JSON",
+    "downloadURL": "https://www.data.go.kr/download/standard.json",
+    "sourceFile": "sources/national-outdoor-equipment.json",
+    "headerFile": "sources/national-outdoor-equipment-header.json",
+    "capturedAt": "2026-10-22",
+    "encoding": "utf-8",
+    "rowCount": 11674,
+    "placeCount": 6858,
+    "provinceCount": 13,
+    "regionCount": 54,
+    "missingCoordinateRows": 4094,
+    "missingCoordinatePlaces": 3136,
+    "conflictingCoordinatePlaces": 3,
+    "multirowPlaces": 942,
+    "exactRepeatedRows": 690,
+    "placesWithoutEquipmentNames": 691,
+    "referenceDateRange": [
+      "2024-12-27",
+      "2026-08-19"
+    ],
+    "sha256": "d90c3ad5bd2613dde946cd5aa1b5ddf939d3836a1135b7c584c27981cf9b26e2",
+    "byteCount": 5623666,
+    "collectionProof": {
+      "schemaVersion": 1,
+      "sourceID": "data-go-kr:15139207",
+      "capturedAt": "2026-10-22",
+      "rowCount": 11674,
+      "byteCount": 5623666,
+      "sha256": "d90c3ad5bd2613dde946cd5aa1b5ddf939d3836a1135b7c584c27981cf9b26e2"
+    }
+  },
+  "legacyRegional": {
+    "sourceFile": "sources/legacy-regional-catalog.json",
+    "preservedAt": "2026-10-22",
+    "places": 542,
+    "note": "기존 김해·무안 장소의 ID와 상세를 고정 보존합니다. 전국 자료 갱신 시 원본 CSV를 다시 정규화하지 않고 이 스냅샷을 병합합니다.",
+    "sha256": "40e07e895a9c860f6b6ec2a7dfc571fc2882a077b95f936467ece265d51894c7",
+    "byteCount": 891769
   }
 }
