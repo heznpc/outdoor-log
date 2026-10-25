@@ -43,7 +43,6 @@ final class WatchWorkoutController: NSObject, ObservableObject {
   private var transitionTimeout: Task<Void, Never>?
   private var retryBuilder: HKLiveWorkoutBuilder?
   private var retryWorkoutID: UUID?
-  private var retryStage: WatchSaveStage?
   private var collectionBegan = false
   private var finishInProgress = false
 
@@ -74,20 +73,32 @@ final class WatchWorkoutController: NSObject, ObservableObject {
 
   func activate() async {
     guard !bootstrapping else { return }
-    if isReady {
+    if isReady, pendingCompletion == nil {
       connection.activate()
       retryTransfer()
       await refreshSteps()
       return
     }
     bootstrapping = true
+    isReady = false
     defer { bootstrapping = false }
     do {
       archive = try WatchArchive()
+      if WatchRecoveryPolicy.activation(hasPendingCompletion: pendingCompletion != nil,
+        hasJournal: archive?.journal != nil) == .persistCompletion,
+        let pendingCompletion {
+        // Keep the exact confirmed result until its local commit succeeds. A failed flush throws
+        // before journal recovery can replace it with a weaker result from a HealthKit query.
+        try storeCompletion(pendingCompletion)
+      }
       journal = archive?.journal
       refreshArchive()
       connection.activate()
-      if journal != nil { await recoverSession() }
+      if journal != nil, !(await recoverSession()) {
+        isReady = false
+        publish()
+        return
+      }
       isReady = true
       publish()
       retryTransfer()
@@ -102,7 +113,9 @@ final class WatchWorkoutController: NSObject, ObservableObject {
   func recoverFromSystem() async {
     if !isReady { await activate(); return }
     guard session == nil, journal != nil else { return }
-    await recoverSession()
+    isReady = false
+    isReady = await recoverSession()
+    publish()
   }
 
   func requestPermissions() async throws {
@@ -133,8 +146,7 @@ final class WatchWorkoutController: NSObject, ObservableObject {
   }
 
   func perform(_ action: WatchCommand.Action, kind: WorkoutKind? = nil) async {
-    let command = WatchCommand(action: action, sessionID: action == .start ? UUID() : state.sessionID,
-      kind: kind ?? state.kind, placeID: state.placeID, placeName: state.placeName)
+    let command = WatchRecoveryPolicy.localCommand(action, state: state, kind: kind)
     let reply = await handle(command)
     if !reply.accepted { notice = reply.message }
   }
@@ -191,7 +203,6 @@ final class WatchWorkoutController: NSObject, ObservableObject {
     self.builder = builder
     retryBuilder = nil
     retryWorkoutID = nil
-    retryStage = nil
     collectionBegan = false
     configure(session: session, builder: builder)
     state = WatchWorkoutState(sessionID: id, phase: .saving, kind: command.kind,
@@ -231,8 +242,6 @@ final class WatchWorkoutController: NSObject, ObservableObject {
 
   private func finish() async throws {
     guard let session, let builder, var journal, collectionBegan else { throw WatchWireError.wrongSession }
-    finishInProgress = true
-    defer { finishInProgress = false }
     journal.workout.endedAt = Date()
     journal.workout.exercises = exercises
     journal.workout.modifiedAt = Date()
@@ -243,14 +252,21 @@ final class WatchWorkoutController: NSObject, ObservableObject {
     // If storage is unavailable, leave the workout running and let the person retry.
     try archive?.saveJournal(journal)
     self.journal = journal
-    // Once stopping has been requested, a failed local write must not keep the session alive.
-    // This defer is deliberately registered after the pre-stop durable journal write.
-    defer { session.end() }
+    try await completeEndingSession(session, builder: builder, journal: journal)
+  }
+
+  private func completeEndingSession(_ session: HKWorkoutSession, builder: HKLiveWorkoutBuilder,
+    journal initial: WatchJournal) async throws {
+    var journal = initial
+    finishInProgress = true
+    defer { session.end(); finishInProgress = false }
     state.phase = .saving
     state.message = "Watch 기록과 건강 앱에 저장 중"
     publish()
     do {
-      try await awaitTransition(.stopped) { session.stopActivity(with: journal.workout.endedAt) }
+      if [.running, .paused].contains(session.state) {
+        try await awaitTransition(.stopped) { session.stopActivity(with: journal.workout.endedAt) }
+      }
       try await endCollection(builder, at: journal.workout.endedAt)
       journal.stage = .collectionEnded
       rememberRetry(builder, journal: journal)
@@ -281,13 +297,11 @@ final class WatchWorkoutController: NSObject, ObservableObject {
       if let healthWorkout {
         completed = applyingSavedWorkout(healthWorkout, to: completed)
         retryBuilder = nil
-        retryStage = nil
       } else {
         // Apple documents nil/nil as a successful save while locked. Repeating finish would duplicate it.
         completed.healthExportState = .failed
         completed.healthExportMessage = "건강 앱 저장 응답은 받았지만 잠금 때문에 기록 ID를 확인하지 못했습니다. 잠금을 풀고 저장 상태를 확인해 주세요."
         retryBuilder = nil
-        retryStage = .saveRequested
       }
     } catch {
       completed.healthExportState = .failed
@@ -308,9 +322,9 @@ final class WatchWorkoutController: NSObject, ObservableObject {
     pendingCompletion = workout
     do {
       guard let archive else { throw LocalDataError.storageUnavailable }
-      try archive.complete(workout)
+      try archive.complete(workout, recoveryJournal: journal)
       pendingCompletion = nil
-      journal = nil
+      if journal?.workout.id == workout.id { journal = nil }
       timer?.invalidate()
       timer = nil
       state.sessionID = workout.id
@@ -382,8 +396,27 @@ final class WatchWorkoutController: NSObject, ObservableObject {
     } catch { notice = error.localizedDescription }
   }
 
+  func healthRetryDescription(for workout: PersonalWorkout) -> String {
+    let action = WatchRecoveryPolicy.retry(archive?.healthRetry(for: workout.id),
+      hasOriginalBuilder: retryWorkoutID == workout.id && retryBuilder != nil)
+    switch action {
+    case .originalBuilder: return "남아 있는 원래 센서 기록으로 건강 저장을 다시 시도합니다."
+    case .summary:
+      switch WatchRecoveryPolicy.summarySavePlan(for: workout) {
+      case .events:
+        return "원래 센서 기록을 복구할 수 없어 보관된 종류·시각·운동 시간과 실제 휴식 구간으로 요약 운동을 저장합니다. 심박수·거리·에너지는 포함하지 않으며 세트는 앱 기록에 유지합니다."
+      case .aggregate:
+        return "원래 센서 기록을 복구할 수 없어 보관된 종류·시각·운동 시간으로 요약 운동을 저장합니다. 심박수·거리·에너지와 실제 휴식 구간은 건강 앱에 전달하지 않으며, 세트와 휴식 구간은 앱 기록에 유지합니다."
+      case .unavailable:
+        return "기록된 활동 시간을 건강 요약으로 보존할 수 없어 새 요약은 저장하지 않습니다. 기존 건강 기록 조회는 계속하며 개인 운동·세트·휴식 기록은 앱에 보관합니다."
+      }
+    case .lookupOnly: return "이전 저장 결과가 불확실하므로 기존 건강 기록만 확인합니다. 새 건강 기록은 만들지 않습니다."
+    }
+  }
+
   func retryHealthSave(_ workout: PersonalWorkout) async {
-    guard !isBusy, ![.running, .paused, .saving].contains(state.phase), pendingCompletion == nil else { return }
+    guard isReady, !isBusy, ![.running, .paused, .saving].contains(state.phase),
+      pendingCompletion == nil, journal == nil else { return }
     isBusy = true
     finishInProgress = true
     defer { isBusy = false; finishInProgress = false }
@@ -395,19 +428,67 @@ final class WatchWorkoutController: NSObject, ObservableObject {
         try storeCompletion(updated)
         return
       }
-      if retryWorkoutID == workout.id, let builder = retryBuilder,
-        retryStage == .saveRejected || retryStage == .collectionEnded || retryStage == .ending {
-        var retry = WatchJournal(workout: workout, stage: retryStage ?? .ending)
+      let attempt = archive?.healthRetry(for: workout.id)
+      switch WatchRecoveryPolicy.retry(attempt,
+        hasOriginalBuilder: retryWorkoutID == workout.id && retryBuilder != nil) {
+      case .originalBuilder:
+        guard let builder = retryBuilder, let attempt else { throw WatchWireError.unavailable }
+        var retry = WatchJournal(workout: workout, stage: attempt.stage, elapsedSeconds: workout.duration)
         if retry.stage == .ending {
           try await endCollection(builder, at: workout.endedAt)
           retry.stage = .collectionEnded
         }
         rememberRetry(builder, journal: retry)
         try await saveHealthWorkout(builder, journal: retry)
-      } else {
+      case .summary:
+        try await saveSummaryWorkout(workout)
+      case .lookupOnly:
         notice = "건강 기록을 찾지 못했거나 읽기 권한이 없습니다. 저장 여부가 불확실해 새 건강 기록은 만들지 않았습니다. Watch의 운동·세트 기록은 보관되어 있습니다."
       }
     } catch { notice = error.localizedDescription }
+  }
+
+  private func saveSummaryWorkout(_ workout: PersonalWorkout) async throws {
+    guard let archive else { throw LocalDataError.storageUnavailable }
+    let plan = WatchRecoveryPolicy.summarySavePlan(for: workout)
+    guard plan != .unavailable else {
+      throw WatchWireError.rejected("기록된 활동 시간을 보존할 수 없어 건강 요약을 저장하지 않았습니다. 개인 운동·세트·휴식 기록은 앱에 보관되어 있습니다.")
+    }
+    let metadata: [String: Any] = [HKMetadataKeyExternalUUID: workout.id.uuidString,
+      HKMetadataKeySyncIdentifier: "outdoorlog.watch.\(workout.id.uuidString)",
+      HKMetadataKeySyncVersion: NSNumber(value: 1),
+      "app.heznpc.outdoorlog.summaryRecovery": true,
+      "app.heznpc.outdoorlog.summaryRecoveryIncludesPauses": plan == .events]
+    let summary: HKWorkout
+    if plan == .events {
+      let events = workout.pauses.filter { $0.endedAt > $0.startedAt }.flatMap { pause in
+        [HKWorkoutEvent(type: .pause, dateInterval: DateInterval(start: pause.startedAt, duration: 0), metadata: nil),
+          HKWorkoutEvent(type: .resume, dateInterval: DateInterval(start: pause.endedAt, duration: 0), metadata: nil)]
+      }
+      summary = HKWorkout(activityType: workout.kind.watchActivityType, start: workout.startedAt,
+        end: workout.endedAt, workoutEvents: events, totalEnergyBurned: nil, totalDistance: nil,
+        metadata: metadata)
+    } else {
+      // Unlike the event initializer, duration: 0 means the entire interval; the policy rejects it.
+      summary = HKWorkout(activityType: workout.kind.watchActivityType, start: workout.startedAt,
+        end: workout.endedAt, duration: workout.duration, totalEnergyBurned: nil, totalDistance: nil,
+        metadata: metadata)
+    }
+    guard summary.duration == workout.duration else {
+      // Do not save if HealthKit interprets even the known events differently from the record.
+      throw WatchWireError.rejected("기록된 활동 시간을 건강 요약으로 정확히 보존하지 못해 저장하지 않았습니다. 개인 운동·세트·휴식 기록은 앱에 보관되어 있습니다.")
+    }
+    // A crash after this durable marker is lookup-only, even if save's callback never arrived.
+    try archive.saveHealthRetry(WatchHealthRetry(workoutID: workout.id, stage: .saveRequested, source: .summary))
+    do {
+      try await healthStore.save(summary)
+    } catch {
+      try archive.saveHealthRetry(WatchHealthRetry(workoutID: workout.id, stage: .saveRejected, source: .summary))
+      throw error
+    }
+    var completed = applyingSavedWorkout(summary, to: workout)
+    completed.modifiedAt = Date()
+    try storeCompletion(completed)
   }
 
   func retryTransfer() {
@@ -430,7 +511,6 @@ final class WatchWorkoutController: NSObject, ObservableObject {
     self.journal = recovered
     retryBuilder = builder
     retryWorkoutID = recovered.workout.id
-    retryStage = recovered.stage
   }
 
   private func applyingSavedWorkout(_ saved: HKWorkout, to original: PersonalWorkout) -> PersonalWorkout {
@@ -445,23 +525,40 @@ final class WatchWorkoutController: NSObject, ObservableObject {
       $0.startedAt >= saved.startDate && $0.endedAt <= saved.endDate && $0.endedAt >= $0.startedAt
     }
     updated.healthExportState = .saved
-    updated.healthExportMessage = nil
+    if (saved.metadata?["app.heznpc.outdoorlog.summaryRecovery"] as? Bool) == true {
+      updated.healthExportMessage = (saved.metadata?["app.heznpc.outdoorlog.summaryRecoveryIncludesPauses"] as? Bool) == true
+        ? "보관된 운동 시간·종류와 실제 휴식 구간으로 요약 저장했습니다. 원래 센서 수치는 포함하지 않았으며 세트는 앱 기록에 보관합니다."
+        : "보관된 운동 시간과 종류로 요약 저장했습니다. 원래 센서 수치와 실제 휴식 구간은 건강 앱에 전달하지 않았으며, 세트와 휴식 구간은 앱 기록에 보관합니다."
+    } else {
+      updated.healthExportMessage = nil
+    }
     return updated
   }
 
-  private func recoverSession() async {
-    guard let journal else { return }
+  private func recoverSession() async -> Bool {
+    guard let journal else { return true }
     do {
-      let recovered: HKWorkoutSession? = try await withCheckedThrowingContinuation { continuation in
-        healthStore.recoverActiveWorkoutSession { session, error in
-          if let error { continuation.resume(throwing: error) }
-          else { continuation.resume(returning: session) }
+      let recovered: HKWorkoutSession?
+      if let session {
+        // A previous lookup can fail after we have already recovered the original session.
+        recovered = session
+      } else {
+        recovered = try await withCheckedThrowingContinuation { continuation in
+          healthStore.recoverActiveWorkoutSession { session, error in
+            if let error { continuation.resume(throwing: error) }
+            else { continuation.resume(returning: session) }
+          }
         }
       }
-      if let recovered, [.running, .paused].contains(recovered.state), journal.stage == .recording {
+      let sessionState: WatchRecoveryPolicy.Session = recovered.map {
+        [.running, .paused].contains($0.state) ? .active : .stopped
+      } ?? .absent
+      switch WatchRecoveryPolicy.recovery(stage: journal.stage, session: sessionState) {
+      case .resume:
+        guard let recovered else { throw WatchWireError.unavailable }
         session = recovered
-        builder = recovered.associatedWorkoutBuilder()
-        guard let builder else { throw WatchWireError.unavailable }
+        let builder = recovered.associatedWorkoutBuilder()
+        self.builder = builder
         configure(session: recovered, builder: builder)
         collectionBegan = true
         exercises = journal.workout.exercises
@@ -472,26 +569,50 @@ final class WatchWorkoutController: NSObject, ObservableObject {
           message: "진행 중이던 운동을 복구했습니다.")
         startTimer()
         publish()
-        return
+      case .finish:
+        guard let recovered else { throw WatchWireError.unavailable }
+        session = recovered
+        let builder = recovered.associatedWorkoutBuilder()
+        self.builder = builder
+        configure(session: recovered, builder: builder)
+        collectionBegan = true
+        exercises = journal.workout.exercises
+        state = WatchWorkoutState(sessionID: journal.workout.id, phase: .saving,
+          kind: journal.workout.kind, startedAt: journal.workout.startedAt,
+          elapsedSeconds: journal.elapsedSeconds, placeID: journal.workout.placeID,
+          placeName: journal.workout.placeName, message: "중단된 운동 종료와 저장을 이어갑니다.")
+        do {
+          try await completeEndingSession(recovered, builder: builder, journal: journal)
+        } catch {
+          notice = error.localizedDescription
+          // A precise failed completion is durable and independently retryable.
+          return self.journal == nil && pendingCompletion == nil
+        }
+      case .preserve:
+        if let recovered {
+          session = recovered
+          builder = recovered.associatedWorkoutBuilder()
+          if journal.stage != .saveRequested, let builder {
+            rememberRetry(builder, journal: journal)
+          }
+        }
+        // Failed HealthKit reads must leave the journal and recovered session available.
+        try await preserveInterrupted(self.journal ?? journal)
+        recovered?.end()
+      case .retryRecovery:
+        return false
       }
-      // A stopped session can still provide its original builder for collection/save recovery.
-      if let recovered, [.stopped, .ended].contains(recovered.state),
-        journal.stage == .ending || journal.stage == .collectionEnded || journal.stage == .saveRejected {
-        rememberRetry(recovered.associatedWorkoutBuilder(), journal: journal)
-      }
-      recovered?.end()
-      try await preserveInterrupted(journal)
+      return true
     } catch {
-      // The journal is preserved if a protected file or HealthKit lookup cannot be read.
-      notice = "운동 복구를 완료하지 못했습니다: \(error.localizedDescription)"
-      do { try await preserveInterrupted(journal) }
-      catch { notice = error.localizedDescription }
+      // Neither a recovery error nor an unreadable HealthKit query proves that the session is absent.
+      notice = "운동 복구를 완료하지 못했습니다. 저장소 다시 열기로 재시도해 주세요: \(error.localizedDescription)"
+      return false
     }
   }
 
   private func preserveInterrupted(_ journal: WatchJournal) async throws {
     var workout = journal.workout
-    let saved = try? await findSavedWorkout(id: workout.id)
+    let saved = try await findSavedWorkout(id: workout.id)
     // The original journal can only be cleared by this session's completion.
     guard self.journal?.workout.id == workout.id else { return }
     if let saved {

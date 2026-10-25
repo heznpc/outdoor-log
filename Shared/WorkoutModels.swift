@@ -74,15 +74,34 @@ struct PersonalWorkout: Codable, Identifiable, Equatable, Sendable {
 
   var duration: TimeInterval { activeDurationSeconds ?? max(0, endedAt.timeIntervalSince(startedAt)) }
 
+  // Disk reads and metadata updates must not become invalid when the clock changes.
   func validate() throws {
+    try validate(maximumDuration: 7 * 24 * 3600)
+  }
+
+  func validateInProgress() throws {
+    try validate(maximumDuration: nil)
+  }
+
+  func validateNewTiming(at now: Date = Date()) throws {
+    try validate()
+    guard endedAt <= now.addingTimeInterval(300) else { throw LocalDataError.invalidRecord }
+  }
+
+  private func validate(maximumDuration: TimeInterval?) throws {
     guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
       title.count <= 160, notes.count <= 10_000,
       (placeID?.count ?? 0) <= 200, (placeName?.count ?? 0) <= 300,
       (watchSourceIDs?.count ?? 0) <= 100,
-      endedAt >= startedAt, duration.isFinite, duration >= 0, duration <= 7 * 24 * 3600,
+      startedAt.timeIntervalSinceReferenceDate.isFinite, endedAt.timeIntervalSinceReferenceDate.isFinite,
+      modifiedAt.timeIntervalSinceReferenceDate.isFinite,
+      endedAt >= startedAt, duration.isFinite, duration >= 0,
+      maximumDuration.map({ duration <= $0 }) ?? true,
       duration <= endedAt.timeIntervalSince(startedAt) + 1,
-      pauses.count <= 1000, pauses.allSatisfy({ $0.startedAt >= startedAt && $0.endedAt >= $0.startedAt && $0.endedAt <= endedAt }),
-      endedAt <= Date().addingTimeInterval(300),
+      pauses.count <= 1000, pauses.allSatisfy({
+        $0.startedAt.timeIntervalSinceReferenceDate.isFinite && $0.endedAt.timeIntervalSinceReferenceDate.isFinite
+          && $0.startedAt >= startedAt && $0.endedAt >= $0.startedAt && $0.endedAt <= endedAt
+      }),
       exercises.count <= 100,
       Set(exercises.map(\.id)).count == exercises.count,
       exercises.allSatisfy({ exercise in

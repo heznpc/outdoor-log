@@ -1,20 +1,12 @@
 import Foundation
 
-enum WatchSaveStage: String, Codable {
-  case recording, ending, collectionEnded, saveRequested, saveRejected
-}
-
-struct WatchJournal: Codable {
-  var workout: PersonalWorkout
-  var stage: WatchSaveStage = .recording
-  var elapsedSeconds: Double = 0
-}
-
 private struct WatchArchiveDocument: Codable {
   var version = 1
   var journal: WatchJournal?
   var history: [PersonalWorkout] = []
   var pendingIDs: Set<UUID> = []
+  // Optional for archives written before durable HealthKit retries were introduced.
+  var healthRecovery: WatchHealthRecoveryState?
 }
 
 /// One atomic protected document commits both local history and the durable transfer outbox.
@@ -34,7 +26,11 @@ final class WatchArchive {
         guard Set(loaded.history.map(\.id)).count == loaded.history.count,
           loaded.pendingIDs.isSubset(of: Set(loaded.history.map(\.id))) else { throw LocalDataError.unreadable }
         for workout in loaded.history { try workout.validate() }
-        if let journal = loaded.journal { try journal.workout.validate() }
+        if let journal = loaded.journal { try journal.workout.validateInProgress() }
+        let retries = loaded.healthRecovery?.attempts ?? []
+        let knownIDs = Set(loaded.history.map(\.id)).union(loaded.journal.map { [$0.workout.id] } ?? [])
+        guard Set(retries.map(\.workoutID)).count == retries.count,
+          retries.allSatisfy({ knownIDs.contains($0.workoutID) }) else { throw LocalDataError.unreadable }
         document = loaded
       } catch let error as LocalDataError { throw error }
       catch { throw LocalDataError.unreadable }
@@ -48,24 +44,44 @@ final class WatchArchive {
   var history: [PersonalWorkout] { document.history.sorted { $0.startedAt > $1.startedAt } }
   var pending: [PersonalWorkout] { document.history.filter { document.pendingIDs.contains($0.id) } }
 
-  func saveJournal(_ journal: WatchJournal) throws {
-    try journal.workout.validate()
+  func healthRetry(for id: UUID) -> WatchHealthRetry? { document.healthRecovery?.attempt(for: id) }
+
+  func saveHealthRetry(_ retry: WatchHealthRetry) throws {
+    guard document.history.contains(where: { $0.id == retry.workoutID })
+      || document.journal?.workout.id == retry.workoutID else { throw LocalDataError.invalidRecord }
     var next = document
-    next.journal = journal
+    var recovery = next.healthRecovery ?? WatchHealthRecoveryState()
+    recovery.remember(retry)
+    next.healthRecovery = recovery
     try commit(next)
   }
 
-  func complete(_ workout: PersonalWorkout) throws {
+  func saveJournal(_ journal: WatchJournal) throws {
+    try journal.workout.validateInProgress()
+    var next = document
+    next.journal = journal
+    if journal.stage != .recording {
+      var recovery = next.healthRecovery ?? WatchHealthRecoveryState()
+      recovery.remember(WatchHealthRetry(workoutID: journal.workout.id, stage: journal.stage))
+      next.healthRecovery = recovery
+    }
+    try commit(next)
+  }
+
+  func complete(_ workout: PersonalWorkout, recoveryJournal: WatchJournal? = nil) throws {
     // Validate the actual transfer before committing an unsendable outbox entry.
     _ = try WatchWire.encode(WatchPacket(kind: .completed, workout: workout))
     var next = document
     next.history.removeAll { $0.id == workout.id }
     next.history.append(workout)
     next.pendingIDs.insert(workout.id)
+    var recovery = next.healthRecovery ?? WatchHealthRecoveryState()
+    recovery.complete(workout, journal: recoveryJournal ?? next.journal)
+    next.healthRecovery = recovery
     if next.journal?.workout.id == workout.id { next.journal = nil }
     // Retain every unacknowledged record even when the on-watch recent history is full.
     let retained = Set(next.history.sorted { $0.startedAt > $1.startedAt }.prefix(200).map(\.id))
-      .union(next.pendingIDs)
+      .union(next.pendingIDs).union(recovery.attempts.map(\.workoutID))
     next.history.removeAll { !retained.contains($0.id) }
     try commit(next)
   }

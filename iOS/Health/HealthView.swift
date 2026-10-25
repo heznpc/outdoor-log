@@ -10,6 +10,7 @@ struct HealthView: View {
   @State private var requesting = false
   @State private var requestError: String?
   @State private var selectedWorkout: HealthWorkoutSummary?
+  @State private var pendingAttachment: HealthWorkoutSummary?
 
   private var days: Int {
     period.days ?? max(1, (Calendar.current.dateComponents([.day],
@@ -131,8 +132,14 @@ struct HealthView: View {
       .onChange(of: scenePhase) { _, value in
         if value != .active { library.clearReadResults() }
       }
-      .sheet(item: $selectedWorkout) { selected in
-        HealthWorkoutDetailView(library: library, workoutID: selected.id, onAttach: onAttach)
+      .sheet(item: $selectedWorkout, onDismiss: {
+        guard let workout = pendingAttachment else { return }
+        pendingAttachment = nil
+        onAttach(workout)
+      }) { selected in
+        HealthWorkoutDetailView(library: library, workoutID: selected.id) { workout in
+          pendingAttachment = workout
+        }
       }
     }
   }

@@ -108,18 +108,29 @@ struct HealthExportIdentity: Equatable {
   }
 }
 
-enum HealthExportTimeline {
-  static func validate(_ workout: PersonalWorkout) throws {
+enum HealthExportTimeline: Equatable {
+  case recordedTimeline, manualDuration
+
+  @discardableResult
+  static func validate(_ workout: PersonalWorkout) throws -> Self {
     try workout.validate()
+    let elapsed = workout.endedAt.timeIntervalSince(workout.startedAt)
+    if workout.origin == .phone, workout.timingEditedLocally == true,
+      workout.pauses.isEmpty, let active = workout.activeDurationSeconds, active < elapsed {
+      // HKWorkout interprets a zero duration as the full start-to-end interval.
+      guard active > 0 else { throw HealthLibraryError.zeroManualDuration }
+      return .manualDuration
+    }
     let paused = workout.pauses.reduce(0) { $0 + $1.endedAt.timeIntervalSince($1.startedAt) }
-    let actualActiveTime = workout.endedAt.timeIntervalSince(workout.startedAt) - paused
+    let actualActiveTime = elapsed - paused
     guard abs(actualActiveTime - workout.duration) < 1 else { throw HealthLibraryError.invalidTimeline }
+    return .recordedTimeline
   }
 }
 
 enum HealthLibraryError: LocalizedError {
   case unavailable, invalidPeriod, writeDenied, importedWorkout, watchExportPending, saveInProgress
-  case saveUnconfirmed, previouslyExportedDifferentRecord, unreadableWorkout, invalidTimeline
+  case saveUnconfirmed, previouslyExportedDifferentRecord, unreadableWorkout, invalidTimeline, zeroManualDuration
 
   var errorDescription: String? {
     switch self {
@@ -133,6 +144,7 @@ enum HealthLibraryError: LocalizedError {
     case .previouslyExportedDifferentRecord: return "이 개인 기록의 이전 내용이 이미 건강에 있습니다. 건강의 기존 운동은 자동으로 덮어쓰지 않습니다."
     case .unreadableWorkout: return "이 운동을 현재 읽을 수 없습니다. 삭제 여부, 읽기 권한, 기기 잠금을 확인해 주세요."
     case .invalidTimeline: return "활동 시간과 실제 시작·종료·일시정지 기록이 일치하지 않아 건강에 저장하지 않았습니다."
+    case .zeroManualDuration: return "실제 휴식 시각이 없는 활동 시간 0초 기록은 건강에 저장할 수 없습니다. 개인 기록은 그대로 유지됩니다."
     }
   }
 }

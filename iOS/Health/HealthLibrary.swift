@@ -123,7 +123,7 @@ final class HealthLibrary {
     // A Watch workout already carries its Health UUID; never create another copy.
     if let existing = workout.healthWorkoutID { return existing }
     guard workout.origin != .watch else { throw HealthLibraryError.watchExportPending }
-    try HealthExportTimeline.validate(workout)
+    let timeline = try HealthExportTimeline.validate(workout)
     guard exporting.insert(workout.id).inserted else { throw HealthLibraryError.saveInProgress }
     defer { exporting.remove(workout.id) }
     try Task.checkCancellation()
@@ -139,33 +139,46 @@ final class HealthLibrary {
       }
       return existing.uuid
     }
+    // A retry may reconcile a sample stored before the clock changed. Only a new
+    // Health write is subject to the current future-date limit.
+    try workout.validateNewTiming()
     try Task.checkCancellation()
-    let configuration = HKWorkoutConfiguration()
-    configuration.activityType = workout.kind.healthActivityType
-    // A manual builder has no live sensor data source and adds no quantity samples.
-    let builder = HKWorkoutBuilder(healthStore: store, configuration: configuration, device: nil)
-    // The stable identifier and fixed version make an uncertain retry idempotent even
-    // when the first save completed after the app lost its callback. We do not invent
-    // calories, heart rate, distance, or pauses that the person did not record.
-    do {
-      try await builder.beginCollection(withStart: workout.startedAt)
-      try await builder.addMetadata([
-        HKMetadataKeyWasUserEntered: true,
-        HKMetadataKeySyncIdentifier: identity.syncIdentifier,
-        HKMetadataKeySyncVersion: HealthExportIdentity.syncVersion,
-        Self.titleKey: workout.title
-      ])
-      let events = workout.pauses.filter { $0.endedAt > $0.startedAt }.flatMap { pause in
-        [HKWorkoutEvent(type: .pause, dateInterval: DateInterval(start: pause.startedAt, duration: 0), metadata: nil),
-         HKWorkoutEvent(type: .resume, dateInterval: DateInterval(start: pause.endedAt, duration: 0), metadata: nil)]
+    // Keep both export paths on the same stable identity so an uncertain retry
+    // cannot create another copy after the first save loses its callback.
+    let metadata: [String: Any] = [
+      HKMetadataKeyWasUserEntered: true,
+      HKMetadataKeySyncIdentifier: identity.syncIdentifier,
+      HKMetadataKeySyncVersion: HealthExportIdentity.syncVersion,
+      Self.titleKey: workout.title
+    ]
+    switch timeline {
+    case .manualDuration:
+      // The deprecated initializer can preserve an explicitly corrected aggregate
+      // duration without inventing pause timestamps or sensor measurements.
+      let sample = HKWorkout(activityType: workout.kind.healthActivityType,
+        start: workout.startedAt, end: workout.endedAt, duration: workout.duration,
+        totalEnergyBurned: nil, totalDistance: nil, metadata: metadata)
+      try await store.save(sample)
+    case .recordedTimeline:
+      let configuration = HKWorkoutConfiguration()
+      configuration.activityType = workout.kind.healthActivityType
+      // A manual builder has no live sensor data source and adds no quantity samples.
+      let builder = HKWorkoutBuilder(healthStore: store, configuration: configuration, device: nil)
+      do {
+        try await builder.beginCollection(withStart: workout.startedAt)
+        try await builder.addMetadata(metadata)
+        let events = workout.pauses.filter { $0.endedAt > $0.startedAt }.flatMap { pause in
+          [HKWorkoutEvent(type: .pause, dateInterval: DateInterval(start: pause.startedAt, duration: 0), metadata: nil),
+           HKWorkoutEvent(type: .resume, dateInterval: DateInterval(start: pause.endedAt, duration: 0), metadata: nil)]
+        }
+        if !events.isEmpty { try await builder.addWorkoutEvents(events) }
+        try await builder.endCollection(withEnd: workout.endedAt)
+        try Task.checkCancellation()
+        _ = try await builder.finishWorkout()
+      } catch {
+        builder.discardWorkout()
+        throw error
       }
-      if !events.isEmpty { try await builder.addWorkoutEvents(events) }
-      try await builder.endCollection(withEnd: workout.endedAt)
-      try Task.checkCancellation()
-      _ = try await builder.finishWorkout()
-    } catch {
-      builder.discardWorkout()
-      throw error
     }
     guard let saved = try await exportedWorkout(identity: identity) else {
       throw HealthLibraryError.saveUnconfirmed

@@ -208,11 +208,14 @@ private struct WatchHistoryDetail: View {
             }
           }
         }
-        if workout.healthExportState == .saved { Label("건강 앱 저장 완료", systemImage: "checkmark") }
-        else {
+        if workout.healthExportState == .saved {
+          Label("건강 앱 저장 완료", systemImage: "checkmark")
           if let message = workout.healthExportMessage { Text(message).font(.footnote) }
+        } else {
+          if let message = workout.healthExportMessage { Text(message).font(.footnote) }
+          Text(controller.healthRetryDescription(for: workout)).font(.footnote)
           Button("건강 저장 재시도·확인") { Task { await controller.retryHealthSave(workout) } }
-            .disabled(controller.isBusy || [.running, .paused, .saving].contains(controller.state.phase))
+            .disabled(!controller.isReady || controller.isBusy || [.running, .paused, .saving].contains(controller.state.phase))
         }
         if controller.isBusy { ProgressView("확인 중") }
         if let notice = controller.notice { Text(notice).font(.footnote) }

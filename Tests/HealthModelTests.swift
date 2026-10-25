@@ -69,7 +69,7 @@ final class HealthModelTests: XCTestCase {
     XCTAssertTrue(HealthExportIdentity.matches(stored, workout: changed))
   }
 
-  func testExportRequiresRealPauseIntervalsForReducedActiveDuration() {
+  func testUncorrectedExportRequiresRealPauseIntervalsForReducedActiveDuration() {
     let start = Date(timeIntervalSince1970: 1_700_000_000)
     var workout = PersonalWorkout(title: "타이머 운동", kind: .strength,
       startedAt: start, endedAt: start.addingTimeInterval(1800), activeDurationSeconds: 1500)
@@ -78,5 +78,80 @@ final class HealthModelTests: XCTestCase {
     XCTAssertNoThrow(try HealthExportTimeline.validate(workout))
     workout.pauses[0].endedAt = start.addingTimeInterval(1000)
     XCTAssertThrowsError(try HealthExportTimeline.validate(workout))
+  }
+
+  func testExplicitManualCorrectionExportsAggregateDurationWithoutInventingPauses() throws {
+    let start = Date(timeIntervalSince1970: 1_700_000_000)
+    var workout = PersonalWorkout(title: "보정한 운동", kind: .strength,
+      startedAt: start, endedAt: start.addingTimeInterval(1800), activeDurationSeconds: 1500,
+      timingEditedLocally: true)
+    XCTAssertEqual(try HealthExportTimeline.validate(workout), .manualDuration)
+    XCTAssertTrue(workout.pauses.isEmpty)
+    workout.timingEditedLocally = false
+    XCTAssertThrowsError(try HealthExportTimeline.validate(workout))
+    workout.timingEditedLocally = nil
+    XCTAssertThrowsError(try HealthExportTimeline.validate(workout))
+  }
+
+  func testManualCorrectionCannotOverrideConflictingPauseIntervals() throws {
+    let start = Date(timeIntervalSince1970: 1_700_000_000)
+    var workout = PersonalWorkout(title: "휴식이 있는 보정 기록", kind: .strength,
+      startedAt: start, endedAt: start.addingTimeInterval(1800), activeDurationSeconds: 1400,
+      pauses: [WorkoutPause(startedAt: start.addingTimeInterval(600), endedAt: start.addingTimeInterval(900))],
+      timingEditedLocally: true)
+    XCTAssertThrowsError(try HealthExportTimeline.validate(workout))
+    workout.activeDurationSeconds = 1500
+    XCTAssertEqual(try HealthExportTimeline.validate(workout), .recordedTimeline)
+  }
+
+  func testManualDurationPathDoesNotAcceptWatchOrHealthLinkedRecords() {
+    let start = Date(timeIntervalSince1970: 1_700_000_000)
+    var workout = PersonalWorkout(title: "다른 출처 운동", kind: .strength,
+      startedAt: start, endedAt: start.addingTimeInterval(1800), activeDurationSeconds: 1500,
+      timingEditedLocally: true, origin: .watch)
+    XCTAssertThrowsError(try HealthExportTimeline.validate(workout))
+    workout.origin = .healthLink
+    XCTAssertThrowsError(try HealthExportTimeline.validate(workout))
+  }
+
+  func testZeroAggregateDurationDoesNotBecomeFullElapsedTime() {
+    let start = Date(timeIntervalSince1970: 1_700_000_000)
+    let workout = PersonalWorkout(title: "활동하지 않은 기록", kind: .strength,
+      startedAt: start, endedAt: start.addingTimeInterval(1800), activeDurationSeconds: 0,
+      timingEditedLocally: true)
+    XCTAssertThrowsError(try HealthExportTimeline.validate(workout)) { error in
+      guard case HealthLibraryError.zeroManualDuration = error else {
+        return XCTFail("Expected an explicit zero-duration rejection, received \(error)")
+      }
+    }
+  }
+
+  func testExportSeparatesTimelineReconciliationFromNewWriteFutureLimit() throws {
+    let now = Date(timeIntervalSince1970: 1_700_000_000)
+    var workout = PersonalWorkout(title: "보정한 운동", kind: .strength,
+      startedAt: now.addingTimeInterval(-1200), endedAt: now.addingTimeInterval(301),
+      activeDurationSeconds: 1000, timingEditedLocally: true)
+    XCTAssertEqual(try HealthExportTimeline.validate(workout), .manualDuration)
+    XCTAssertThrowsError(try workout.validateNewTiming(at: now))
+    workout.endedAt = now.addingTimeInterval(300)
+    XCTAssertNoThrow(try workout.validateNewTiming(at: now))
+    XCTAssertEqual(try HealthExportTimeline.validate(workout), .manualDuration)
+    workout.activeDurationSeconds = 1500
+    XCTAssertEqual(try HealthExportTimeline.validate(workout), .recordedTimeline)
+  }
+
+  func testManualDurationReconciliationRejectsAChangedActiveDuration() {
+    let start = Date(timeIntervalSince1970: 1_700_000_000)
+    var workout = PersonalWorkout(title: "보정한 운동", kind: .strength,
+      startedAt: start, endedAt: start.addingTimeInterval(1800), activeDurationSeconds: 1500,
+      timingEditedLocally: true)
+    let identity = HealthExportIdentity(localID: workout.id)
+    let stored = HealthWorkoutSummary(id: UUID(), kind: workout.kind, title: workout.title,
+      startedAt: workout.startedAt, endedAt: workout.endedAt, sourceName: "OutdoorLog",
+      duration: 1500, distanceMeters: nil, activeEnergyKilocalories: nil, manuallyEntered: true)
+    XCTAssertTrue(HealthExportIdentity.matches(stored, workout: workout))
+    workout.activeDurationSeconds = 1200
+    XCTAssertEqual(HealthExportIdentity(localID: workout.id), identity)
+    XCTAssertFalse(HealthExportIdentity.matches(stored, workout: workout))
   }
 }

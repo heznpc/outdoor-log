@@ -61,10 +61,11 @@ final class RecordStore {
 
   func saveEdited(_ draft: PersonalWorkout, original: PersonalWorkout) throws {
     var edited = draft
-    if let latest = records.first(where: {
+    let latest = records.first(where: {
       $0.id == draft.id || ($0.watchSourceIDs?.contains(draft.id) ?? false)
         || (draft.healthWorkoutID != nil && $0.healthWorkoutID == draft.healthWorkoutID)
-    }) {
+    })
+    if let latest {
       // Apply only fields the user changed; keep asynchronous metadata and new
       // Watch annotations that arrived while this editor was open.
       edited = latest
@@ -92,6 +93,9 @@ final class RecordStore {
       edited.modifiedAt = draft.modifiedAt
     } else if deletedIDs.contains(draft.id) {
       throw LocalDataError.invalidRecord
+    }
+    if latest == nil || draft.startedAt != original.startedAt || draft.endedAt != original.endedAt {
+      try edited.validateNewTiming()
     }
     try save(edited)
   }
@@ -173,7 +177,7 @@ final class RecordStore {
     let known = Set(records.map(\.id)).union(deletedIDs).union(records.flatMap { $0.watchSourceIDs ?? [] })
     let knownHealthIDs = Set(records.compactMap(\.healthWorkoutID))
     var additions = incoming.records.filter {
-      !known.contains($0.id) && !incoming.deletedIDs.contains($0.id)
+      known.isDisjoint(with: ($0.watchSourceIDs ?? []).union([$0.id]))
         && ($0.healthWorkoutID.map { !knownHealthIDs.contains($0) } ?? true)
     }
     for index in additions.indices {
@@ -183,7 +187,11 @@ final class RecordStore {
         additions[index].healthExportMessage = "이전 저장 결과를 다시 확인해야 합니다."
       }
     }
-    try persist(records + additions, deleted: deletedIDs)
+    let keptRecords = records + additions
+    let keptIDs = Set(keptRecords.flatMap { ($0.watchSourceIDs ?? []).union([$0.id]) })
+    // Restore deletion history without deleting records already alive on this device.
+    let restoredDeletions = deletedIDs.union(incoming.deletedIDs.subtracting(keptIDs))
+    try persist(keptRecords, deleted: restoredDeletions)
   }
 
   private func persist(_ next: [PersonalWorkout], deleted: Set<UUID>) throws {

@@ -26,12 +26,19 @@ struct WorkoutEditor: View {
   @State private var error: String?
   @State private var newExercise = ""
   @State private var choosingPlace = false
+  @State private var correctedActiveMinutes: Double
+  @State private var resetPauses = false
+
+  private var timingChanged: Bool {
+    draft.startedAt != original.startedAt || draft.endedAt != original.endedAt
+  }
 
   init(store: RecordStore, places: [PlaceChoice], record: PersonalWorkout) {
     self.store = store
     self.places = places
     self.original = record
     _draft = State(initialValue: record)
+    _correctedActiveMinutes = State(initialValue: record.duration / 60)
   }
 
   var body: some View {
@@ -47,6 +54,19 @@ struct WorkoutEditor: View {
           if draft.healthWorkoutID != nil {
             Text("이 화면은 개인 기록을 수정합니다. 건강 앱의 원본 운동은 변경하지 않습니다.")
               .font(.footnote).foregroundStyle(.secondary)
+          }
+        }
+        if timingChanged {
+          Section("시간 보정") {
+            TextField("활동 시간 (분)", value: $correctedActiveMinutes, format: .number)
+              .keyboardType(.decimalPad)
+            Text("휴식을 뺀 활동 시간을 확인해 주세요. 기존 활동 시간은 \((original.duration / 60).formatted())분입니다.")
+              .font(.footnote).foregroundStyle(.secondary)
+            if !original.pauses.isEmpty {
+              Toggle("시각을 보정하며 기존 휴식 구간 삭제", isOn: $resetPauses)
+              Text("새 시각으로 저장하면 기존 휴식 구간이 삭제됩니다. 원래 시작·종료로 되돌리면 측정한 활동 시간과 휴식 구간을 그대로 보존합니다.")
+                .font(.footnote).foregroundStyle(.secondary)
+            }
           }
         }
         Section("장소") {
@@ -85,8 +105,8 @@ struct WorkoutEditor: View {
         if let error { Section { Text(error).foregroundStyle(.red) } }
       }
       .navigationTitle("운동 기록")
-      .onChange(of: draft.startedAt) { _, _ in resetMeasuredDuration() }
-      .onChange(of: draft.endedAt) { _, _ in resetMeasuredDuration() }
+      .onChange(of: draft.startedAt) { _, _ in updateTimingSuggestion() }
+      .onChange(of: draft.endedAt) { _, _ in updateTimingSuggestion() }
       .sheet(isPresented: $choosingPlace) {
         WorkoutPlacePicker(places: places, selectedID: draft.placeID, selectedName: draft.placeName) { place in
           draft.placeID = place?.id
@@ -100,20 +120,43 @@ struct WorkoutEditor: View {
             do {
               draft.title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
               draft.modifiedAt = Date()
-              try store.saveEdited(draft, original: original)
+              let corrected = try WorkoutTimingCorrection.applying(to: draft, original: original,
+                activeDurationSeconds: correctedActiveMinutes * 60, resetPauses: resetPauses)
+              try store.saveEdited(corrected, original: original)
               dismiss()
             } catch { self.error = error.localizedDescription }
-          }.disabled(!store.ready)
+          }.disabled(!store.ready || (timingChanged && !original.pauses.isEmpty && !resetPauses))
         }
       }
     }
   }
 
-  private func resetMeasuredDuration() {
-    // Editing the local interval is an explicit manual correction. Old pause
-    // intervals no longer describe the corrected times, and Health is unchanged.
-    draft.activeDurationSeconds = nil
-    draft.pauses = []
+  private func updateTimingSuggestion() {
+    if !timingChanged {
+      correctedActiveMinutes = original.duration / 60
+      resetPauses = false
+    } else if original.activeDurationSeconds == nil && original.pauses.isEmpty {
+      // Only an unmeasured manual entry may suggest its full interval as activity.
+      correctedActiveMinutes = max(0, draft.endedAt.timeIntervalSince(draft.startedAt)) / 60
+    }
+  }
+}
+
+enum WorkoutTimingCorrection {
+  static func applying(to draft: PersonalWorkout, original: PersonalWorkout,
+    activeDurationSeconds: Double, resetPauses: Bool) throws -> PersonalWorkout {
+    var result = draft
+    guard draft.startedAt != original.startedAt || draft.endedAt != original.endedAt else {
+      result.activeDurationSeconds = original.activeDurationSeconds
+      result.pauses = original.pauses
+      return result
+    }
+    guard original.pauses.isEmpty || resetPauses else { throw LocalDataError.invalidRecord }
+    result.activeDurationSeconds = activeDurationSeconds
+    result.pauses = []
+    result.timingEditedLocally = true
+    try result.validateNewTiming()
+    return result
   }
 }
 

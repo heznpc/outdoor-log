@@ -240,4 +240,103 @@ import XCTest
     XCTAssertTrue(store.records[0].notes.contains(linked.title))
     XCTAssertTrue(store.records[0].notes.contains(linked.placeName!))
   }
+
+  func testImportRestoresDeletionHistoryWithoutResurrectingWatchRecord() throws {
+    let source = RecordStore(directory: try directory())
+    let record = workout(origin: .watch)
+    XCTAssertTrue(source.acceptWatch(record))
+    try source.remove(record.id)
+    let destination = RecordStore(directory: try directory())
+    try destination.importData(source.exportData())
+    XCTAssertTrue(destination.acceptWatch(record))
+    XCTAssertTrue(destination.records.isEmpty)
+  }
+
+  func testImportedDeletionDoesNotDeleteALiveRecordOrItsAlias() throws {
+    let destination = RecordStore(directory: try directory())
+    var record = workout(origin: .watch)
+    let sourceID = UUID()
+    record.watchSourceIDs = [sourceID]
+    try destination.save(record)
+    let archive = RecordArchive(deletedIDs: [record.id, sourceID])
+    try destination.importData(JSONEncoder().encode(archive))
+    XCTAssertEqual(destination.records, [record])
+    let exported = try JSONDecoder().decode(RecordArchive.self, from: destination.exportData())
+    XCTAssertTrue(exported.deletedIDs.isEmpty)
+  }
+
+  func testImportSkipsMergedAliasAndStillAddsUnrelatedRecords() throws {
+    let destination = RecordStore(directory: try directory())
+    let watch = workout(origin: .watch)
+    try destination.save(watch)
+    var merged = workout(origin: .watch)
+    merged.watchSourceIDs = [watch.id]
+    merged.healthWorkoutID = UUID()
+    merged.healthExportState = .saved
+    let unrelated = workout()
+    let archive = RecordArchive(records: [merged, unrelated])
+    try destination.importData(JSONEncoder().encode(archive))
+    XCTAssertEqual(Set(destination.records.map(\.id)), [watch.id, unrelated.id])
+  }
+
+  func testImportSkipsAnAliasOfDeletedRecordAndStillAddsUnrelatedRecords() throws {
+    let destination = RecordStore(directory: try directory())
+    let deletedID = UUID()
+    try destination.remove(deletedID)
+    var merged = workout(origin: .watch)
+    merged.watchSourceIDs = [deletedID]
+    let unrelated = workout()
+    try destination.importData(JSONEncoder().encode(RecordArchive(records: [merged, unrelated])))
+    XCTAssertEqual(destination.records.map(\.id), [unrelated.id])
+  }
+
+  func testClockRollbackDoesNotBlockArchiveReadOrMetadataEdit() throws {
+    let directory = try directory()
+    let store = RecordStore(directory: directory)
+    let now = Date()
+    var previouslySaved = workout()
+    previouslySaved.startedAt = now.addingTimeInterval(600)
+    previouslySaved.endedAt = now.addingTimeInterval(1200)
+    // Structure remains valid even when today's corrected clock precedes this record.
+    XCTAssertNoThrow(try previouslySaved.validate())
+    XCTAssertThrowsError(try previouslySaved.validateNewTiming(at: now))
+    try store.save(previouslySaved)
+    let reopened = RecordStore(directory: directory)
+    XCTAssertTrue(reopened.ready)
+    var edited = previouslySaved
+    edited.notes = "시계가 보정된 뒤 추가한 메모"
+    try reopened.saveEdited(edited, original: previouslySaved)
+    XCTAssertEqual(reopened.records.first?.notes, edited.notes)
+    XCTAssertNoThrow(try reopened.exportData())
+  }
+
+  func testNewOrChangedFutureTimingStillRequiresCorrection() throws {
+    let store = RecordStore(directory: try directory())
+    var future = workout()
+    future.startedAt = Date().addingTimeInterval(3600)
+    future.endedAt = future.startedAt.addingTimeInterval(600)
+    XCTAssertThrowsError(try store.saveEdited(future, original: future))
+    let original = workout()
+    try store.save(original)
+    future.id = original.id
+    XCTAssertThrowsError(try store.saveEdited(future, original: original))
+    XCTAssertEqual(store.records, [original])
+  }
+
+  func testStructuralValidationStillRejectsNonfiniteDates() throws {
+    let invalid = Date(timeIntervalSinceReferenceDate: .infinity)
+    var record = workout()
+    record.modifiedAt = invalid
+    XCTAssertThrowsError(try record.validate())
+    record = workout()
+    record.startedAt = Date(timeIntervalSinceReferenceDate: -.infinity)
+    XCTAssertThrowsError(try record.validateInProgress())
+    record = workout()
+    record.endedAt = invalid
+    record.activeDurationSeconds = 1
+    XCTAssertThrowsError(try record.validate())
+    record = workout()
+    record.pauses = [WorkoutPause(startedAt: record.startedAt, endedAt: invalid)]
+    XCTAssertThrowsError(try record.validate())
+  }
 }

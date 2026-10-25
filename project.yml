@@ -20,6 +20,7 @@ targets:
         excludes: ['Resources/**', '*.entitlements', 'Info.plist']
       - path: Shared
       - path: Watch/Protocol/WatchWire.swift
+      - path: Watch/Protocol/WatchRecoveryPolicy.swift
       - path: iOS/Resources
         buildPhase: resources
     settings:

@@ -47,6 +47,10 @@
 		387008EB2C096AA5FC43CB95 /* NationalEquipment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D32D514F8BAE792675E6817 /* NationalEquipment.swift */; };
 		D9F4FE31FC3DD878CEB52EF4 /* CatalogMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 983C28F7714D822F017D0433 /* CatalogMigrationTests.swift */; };
 		B2F58173EEC67A4F74E0B980 /* NationalEquipmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89520CA25D404C15D9DAB7AE /* NationalEquipmentTests.swift */; };
+		54D87F0DBE27BB14ECF12A1B /* WatchRecoveryPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 326D975909434F92E95A34E0 /* WatchRecoveryPolicy.swift */; };
+		BD7B9FE4870CA0A0D66B3494 /* WatchRecoveryPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 326D975909434F92E95A34E0 /* WatchRecoveryPolicy.swift */; };
+		16561EEFFD96E709030805F8 /* WatchRecoveryPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36522C6666EE2F1DC9AA778F /* WatchRecoveryPolicyTests.swift */; };
+		E7BBE704911B47D40FE9BE76 /* PhoneWorkoutRecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDE7029C9F72D51725D77F3 /* PhoneWorkoutRecoveryTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -121,6 +125,9 @@
 		1D32D514F8BAE792675E6817 /* NationalEquipment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NationalEquipment.swift; sourceTree = "<group>"; };
 		983C28F7714D822F017D0433 /* CatalogMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogMigrationTests.swift; sourceTree = "<group>"; };
 		89520CA25D404C15D9DAB7AE /* NationalEquipmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NationalEquipmentTests.swift; sourceTree = "<group>"; };
+		326D975909434F92E95A34E0 /* WatchRecoveryPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchRecoveryPolicy.swift; sourceTree = "<group>"; };
+		36522C6666EE2F1DC9AA778F /* WatchRecoveryPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchRecoveryPolicyTests.swift; sourceTree = "<group>"; };
+		3FDE7029C9F72D51725D77F3 /* PhoneWorkoutRecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWorkoutRecoveryTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -173,6 +180,8 @@
 		3B58B10F49B3C1CF4B58A199 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				3FDE7029C9F72D51725D77F3 /* PhoneWorkoutRecoveryTests.swift */,
+				36522C6666EE2F1DC9AA778F /* WatchRecoveryPolicyTests.swift */,
 				89520CA25D404C15D9DAB7AE /* NationalEquipmentTests.swift */,
 				983C28F7714D822F017D0433 /* CatalogMigrationTests.swift */,
 				020668BB22285334BE48404C /* CatalogTests.swift */,
@@ -202,7 +211,6 @@
 				978B39096AC10043EAC45587 /* WatchPhoneConnection.swift */,
 				36812BF34C35AAD18AD72E84 /* WatchRootView.swift */,
 				D9C66A16398926F2A47DB10F /* WatchWorkoutController.swift */,
-				A34834DCE880EE0A0C54040A /* Protocol */,
 			);
 			path = Watch;
 			sourceTree = "<group>";
@@ -229,6 +237,7 @@
 		A34834DCE880EE0A0C54040A /* Protocol */ = {
 			isa = PBXGroup;
 			children = (
+				326D975909434F92E95A34E0 /* WatchRecoveryPolicy.swift */,
 				0055FA0A74137C1ACF38AA26 /* WatchWire.swift */,
 			);
 			name = Protocol;
@@ -385,6 +394,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				54D87F0DBE27BB14ECF12A1B /* WatchRecoveryPolicy.swift in Sources */,
 				36BE845E70AAAD1D2450D283 /* OutdoorLogWatchApp.swift in Sources */,
 				19DE7BDCD87415D5215F8D83 /* ProtectedFile.swift in Sources */,
 				32522D34854CFEC8D2F87802 /* WatchArchive.swift in Sources */,
@@ -400,6 +410,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E7BBE704911B47D40FE9BE76 /* PhoneWorkoutRecoveryTests.swift in Sources */,
+				16561EEFFD96E709030805F8 /* WatchRecoveryPolicyTests.swift in Sources */,
 				B2F58173EEC67A4F74E0B980 /* NationalEquipmentTests.swift in Sources */,
 				D9F4FE31FC3DD878CEB52EF4 /* CatalogMigrationTests.swift in Sources */,
 				EF7F3A9FBD3AA40146FAC82F /* CatalogTests.swift in Sources */,
@@ -413,6 +425,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BD7B9FE4870CA0A0D66B3494 /* WatchRecoveryPolicy.swift in Sources */,
 				387008EB2C096AA5FC43CB95 /* NationalEquipment.swift in Sources */,
 				97E389BD42637A2A9AFE66D8 /* CatalogMerge.swift in Sources */,
 				312C015CC52D8ACB236A3A24 /* CatalogDownload.swift in Sources */,
