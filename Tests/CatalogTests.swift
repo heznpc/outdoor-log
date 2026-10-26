@@ -310,6 +310,75 @@ final class CatalogTests: XCTestCase {
     XCTAssertTrue(store.errorMessage?.contains("인증키") == true)
   }
 
+  func testCoverageKeepsUnrepresentedProvincesAndSeparatesUnverifiedParks() throws {
+    var missing = fixture()
+    missing.id = "missing"
+    missing.latitude = nil; missing.longitude = nil; missing.coordinateQuality = .unknown
+    var park = fixture()
+    park.id = "park"; park.coordinateQuality = .park
+    park.equipmentInformationKnown = false; park.equipment = []
+    var renamed = fixture()
+    renamed.id = "renamed"; renamed.regionName = "전라북도 전주시"; renamed.address = "전북 전주시 시험로 2"
+    let coverage = CatalogRegionCoverage.summarize([fixture(), missing, park, renamed])
+    XCTAssertEqual(coverage.count, 17)
+    let gyeongnam = try XCTUnwrap(coverage.first { $0.name == "경상남도" })
+    XCTAssertEqual(gyeongnam.equipmentPlaces, 2)
+    XCTAssertEqual(gyeongnam.missingCoordinates, 1)
+    XCTAssertEqual(gyeongnam.parkReferences, 1)
+    XCTAssertEqual(coverage.first { $0.name == "서울특별시" }?.equipmentPlaces, 0)
+    XCTAssertEqual(coverage.first { $0.name == "전북특별자치도" }?.equipmentPlaces, 1)
+  }
+
+  @MainActor func testCustomFeedCanBeClearedBackToDistributionDefault() throws {
+    let suite = "CatalogDistributionTests.\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let store = CatalogStore(defaults: defaults, bundledURL: nil,
+      serviceKeyStorage: TestCatalogKeyStorage(),
+      publishedManifestURL: "https://example.org/public/manifest.json", loadImmediately: false)
+    XCTAssertEqual(store.effectiveManifestURL, "https://example.org/public/manifest.json")
+    try store.configureManifest("https://example.org/custom/manifest.json")
+    XCTAssertEqual(store.effectiveManifestURL, "https://example.org/custom/manifest.json")
+    try store.configureManifest(" ")
+    XCTAssertEqual(store.effectiveManifestURL, "https://example.org/public/manifest.json")
+    XCTAssertEqual(CatalogStore.configuredManifest("$(OUTDOOR_LOG_CATALOG_MANIFEST_URL)"), "")
+    XCTAssertEqual(CatalogStore.configuredManifest("http://example.org/manifest.json"), "")
+  }
+
+  func testPublishedReleasePreservesNewerRegionalCapture() throws {
+    var previous = fixture()
+    previous.sourceID = "regional-test"; previous.provenance.capturedAt = "2026-10-26"
+    var old = previous
+    old.provenance.capturedAt = "2026-10-22"
+    old.equipment = [EquipmentItem(name: "이전 기구 목록", count: nil)]
+    func catalog(_ place: EquipmentPlace, version: Int) -> CatalogPack {
+      CatalogPack(schemaVersion: 1, version: version, generatedAt: place.provenance.capturedAt, places: [place],
+        sources: [CatalogSourceSummary(id: "regional-test", capturedAt: place.provenance.capturedAt,
+          rowCount: 1, placeCount: 1, missingCoordinateCount: 0, regions: [place.regionName], requiresPlaceSourceID: true)])
+    }
+    let merged = try CatalogMerge.manifest([catalog(old, version: 100)], version: 100,
+      generatedAt: "2026-10-27", preservingCoordinatesFrom: catalog(previous, version: 1))
+    XCTAssertEqual(merged.places[0].equipment, previous.equipment)
+    XCTAssertEqual(merged.sources?.first?.capturedAt, "2026-10-26")
+    XCTAssertEqual(merged.version, 100)
+  }
+
+  func testLegacyRegionalSummaryDateDoesNotBlockPublishedUpdate() throws {
+    var place = fixture()
+    place.sourceID = "regional-test"
+    let summary = CatalogSourceSummary(id: "regional-test", capturedAt: "legacy-date",
+      rowCount: 1, placeCount: 1, missingCoordinateCount: 0, regions: [place.regionName], requiresPlaceSourceID: true)
+    let previous = CatalogPack(schemaVersion: 1, version: 1, generatedAt: "2026-10-22",
+      places: [place], sources: [summary])
+    var published = previous
+    published.version = 100
+    published.sources?[0].capturedAt = "2026-10-26"
+    published.places[0].equipment = [.init(name: "갱신된 기구", count: nil)]
+    let merged = try CatalogMerge.manifest([published], version: 100, generatedAt: "2026-10-27",
+      preservingCoordinatesFrom: previous)
+    XCTAssertEqual(merged.places[0].equipment, published.places[0].equipment)
+  }
+
   private func fixture() -> EquipmentPlace {
     EquipmentPlace(id: "test-place", name: "시험 공원", address: "경상남도 김해시 시험로 1",
       regionCode: "48250", regionName: "경상남도 김해시", locality: "시험동",

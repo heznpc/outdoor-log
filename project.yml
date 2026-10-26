@@ -15,6 +15,9 @@ targets:
   OutdoorLog:
     type: application
     platform: iOS
+    configFiles:
+      Debug: Config/Distribution.xcconfig
+      Release: Config/Distribution.xcconfig
     sources:
       - path: iOS
         excludes: ['Resources/**', '*.entitlements', 'Info.plist']
@@ -36,6 +39,7 @@ targets:
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         NSLocationWhenInUseUsageDescription: 가까운 운동기구를 찾고 직선 거리를 표시할 때 현재 위치를 사용합니다.
+        OutdoorLogCatalogManifestURL: $(OUTDOOR_LOG_CATALOG_MANIFEST_URL)
         NSHealthShareUsageDescription: 허용한 활동과 운동 이력을 확인하고 개인 장소 기록에 연결합니다. 건강 데이터는 자체 서버로 전송하지 않습니다.
         NSHealthUpdateUsageDescription: 직접 기록한 운동을 사용자가 선택할 때 Apple 건강에 저장합니다.
     dependencies:

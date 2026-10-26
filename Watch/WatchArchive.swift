@@ -26,7 +26,7 @@ final class WatchArchive {
         guard Set(loaded.history.map(\.id)).count == loaded.history.count,
           loaded.pendingIDs.isSubset(of: Set(loaded.history.map(\.id))) else { throw LocalDataError.unreadable }
         for workout in loaded.history { try workout.validate() }
-        if let journal = loaded.journal { try journal.workout.validateInProgress() }
+        if let journal = loaded.journal { try journal.validate() }
         let retries = loaded.healthRecovery?.attempts ?? []
         let knownIDs = Set(loaded.history.map(\.id)).union(loaded.journal.map { [$0.workout.id] } ?? [])
         guard Set(retries.map(\.workoutID)).count == retries.count,
@@ -57,7 +57,7 @@ final class WatchArchive {
   }
 
   func saveJournal(_ journal: WatchJournal) throws {
-    try journal.workout.validateInProgress()
+    try journal.validate()
     var next = document
     next.journal = journal
     if journal.stage != .recording {
@@ -70,7 +70,7 @@ final class WatchArchive {
 
   func complete(_ workout: PersonalWorkout, recoveryJournal: WatchJournal? = nil) throws {
     // Validate the actual transfer before committing an unsendable outbox entry.
-    _ = try WatchWire.encode(WatchPacket(kind: .completed, workout: workout))
+    _ = try WatchWire.encodeTransfer(WatchPacket(kind: .completed, workout: workout))
     var next = document
     next.history.removeAll { $0.id == workout.id }
     next.history.append(workout)

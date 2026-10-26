@@ -113,21 +113,55 @@ enum CatalogMerge {
       }
     }
     let summaries = sources.values.sorted { $0.id < $1.id }
-    let result = CatalogPack(schemaVersion: 1, version: version, generatedAt: generatedAt,
+    var result = CatalogPack(schemaVersion: 1, version: version, generatedAt: generatedAt,
       places: places, sources: summaries.isEmpty ? nil : summaries)
     try CatalogValidation.validate(result)
     guard let existing else { return result }
     try CatalogValidation.validate(existing)
+    let publishedPlaces = Dictionary(uniqueKeysWithValues: result.places.map { ($0.id, $0) })
+    // A published release can be newer while one of its source captures is
+    // older than a direct API refresh or a user's reviewed file. Release
+    // numbers do not grant permission to roll that source backwards.
+    if let incomingSource = result.sources?.first(where: { $0.id == NationalEquipment.sourceID }),
+      let previousSource = existing.sources?.first(where: { $0.id == NationalEquipment.sourceID }) {
+      let incoming = CatalogPack(schemaVersion: 1, version: version, generatedAt: generatedAt,
+        places: result.places.filter(\.isNationalEquipment), sources: [incomingSource])
+      let previous = CatalogPack(schemaVersion: 1, version: existing.version, generatedAt: existing.generatedAt,
+        places: existing.places.filter(\.isNationalEquipment), sources: [previousSource])
+      let reconciled = try reconcilePublishedNational(incoming, previous: previous)
+      result.places = result.places.filter { !$0.isNationalEquipment } + reconciled.places
+      result.sources = (result.sources?.filter { $0.id != NationalEquipment.sourceID } ?? []) + (reconciled.sources ?? [])
+    }
+    for previous in existing.sources ?? [] where previous.id != NationalEquipment.sourceID {
+      guard previous.requiresPlaceSourceID == true,
+        let index = result.sources?.firstIndex(where: { $0.id == previous.id }),
+        let incoming = result.sources?[index],
+        let previousDate = captureDate(previous.capturedAt), let incomingDate = captureDate(incoming.capturedAt),
+        previousDate > incomingDate else { continue }
+      // Legacy unassociated rows cannot safely be attributed to a source.
+      let retained = existing.places.filter { $0.sourceID == previous.id }
+      guard retained.count == previous.placeCount else { continue }
+      result.places = result.places.filter { $0.sourceID != previous.id } + retained
+      result.sources?[index] = previous
+    }
+    try CatalogValidation.validate(result)
     let previousPlaces = Dictionary(uniqueKeysWithValues: existing.places.map { ($0.id, $0) })
     let retained = result.places.compactMap { place -> CoordinateSupplementPack.Entry? in
       // The manifest owns the new inventory and source coordinates. Carry a
       // reviewed estimate only when its original place identity still agrees.
-      guard place.coordinate == nil, let previous = previousPlaces[place.id],
-        previous.name == place.name, previous.address == place.address,
-        previous.provenance.sourceURL == place.provenance.sourceURL,
-        previous.provenance.referenceDate == place.provenance.referenceDate,
-        previous.sourceID == nil || place.sourceID == nil || previous.sourceID == place.sourceID,
-        let coordinate = previous.coordinate, let evidence = previous.coordinateEvidence else { return nil }
+      guard place.coordinate == nil else { return nil }
+      let candidates = [publishedPlaces[place.id], previousPlaces[place.id]].compactMap { $0 }.filter { candidate in
+        candidate.name == place.name && candidate.address == place.address
+          && candidate.provenance.sourceURL == place.provenance.sourceURL
+          && candidate.provenance.referenceDate == place.provenance.referenceDate
+          && (candidate.sourceID == nil || place.sourceID == nil || candidate.sourceID == place.sourceID)
+          && candidate.coordinate != nil && candidate.coordinateEvidence != nil
+      }.sorted {
+        (captureDate($0.coordinateEvidence!.capturedAt) ?? .distantPast)
+          > (captureDate($1.coordinateEvidence!.capturedAt) ?? .distantPast)
+      }
+      guard let previous = candidates.first, let coordinate = previous.coordinate,
+        let evidence = previous.coordinateEvidence else { return nil }
       return CoordinateSupplementPack.Entry(placeID: place.id,
         latitude: coordinate.latitude, longitude: coordinate.longitude, quality: previous.coordinateQuality,
         sourceURL: evidence.sourceURL, method: evidence.method, capturedAt: evidence.capturedAt,
@@ -137,6 +171,43 @@ enum CatalogMerge {
     // Reuse the coordinate import's freshness/conflict checks and update source
     // counts after any missing coordinates have been filled.
     return try coordinates(.init(schemaVersion: 1, entries: retained), into: result).0
+  }
+
+  private static func reconcilePublishedNational(_ incoming: CatalogPack, previous: CatalogPack) throws -> CatalogPack {
+    guard let newSource = incoming.sources?.first, let oldSource = previous.sources?.first else {
+      throw CatalogError.invalid("전국 자료의 수집 정보가 없습니다")
+    }
+    let incomingComplete = newSource.completeCapturedAt
+      ?? (newSource.partialCapturedAt == nil ? newSource.capturedAt : nil)
+    let incomingDate = try incomingComplete.map(requiredCaptureDate)
+    let previousDate = try oldSource.completeCapturedAt.map(requiredCaptureDate)
+    // Equal full captures still accept new publication evidence and corrections.
+    let useIncoming = previousDate == nil || (incomingDate.map { $0 >= previousDate! } ?? false)
+    let base = useIncoming ? incoming : previous
+    let other = useIncoming ? previous : incoming
+    let complete = useIncoming ? incomingComplete : oldSource.completeCapturedAt
+    let cutoff = try complete.map(requiredCaptureDate) ?? .distantPast
+    var indexed = Dictionary(uniqueKeysWithValues: base.places.map { ($0.id, $0) })
+    var partial = base.sources?.first?.partialCapturedAt
+    for place in other.places {
+      let date = try requiredCaptureDate(place.provenance.capturedAt)
+      guard date > cutoff else { continue }
+      if let current = indexed[place.id],
+        try requiredCaptureDate(current.provenance.capturedAt) >= date { continue }
+      indexed[place.id] = place
+      partial = try newerCapture(partial, place.provenance.capturedAt)
+    }
+    var summary = try requiredCaptureDate(newSource.capturedAt) >= requiredCaptureDate(oldSource.capturedAt)
+      ? newSource : oldSource
+    summary.completeCapturedAt = complete
+    summary.partialCapturedAt = partial.flatMap { value in
+      captureDate(value).map { $0 > cutoff } == true ? value : nil
+    }
+    var result = CatalogPack(schemaVersion: 1, version: incoming.version, generatedAt: incoming.generatedAt,
+      places: indexed.values.sorted { $0.id < $1.id }, sources: [summary])
+    refreshSourceSummaries(&result)
+    try CatalogValidation.validate(result)
+    return result
   }
 
   static func regional(_ supplemental: CatalogPack, into existing: CatalogPack) throws -> (CatalogPack, Int) {

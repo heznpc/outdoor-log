@@ -241,13 +241,9 @@ final class WatchWorkoutController: NSObject, ObservableObject {
   }
 
   private func finish() async throws {
-    guard let session, let builder, var journal, collectionBegan else { throw WatchWireError.wrongSession }
-    journal.workout.endedAt = Date()
+    guard let session, let builder, let current = journal, collectionBegan else { throw WatchWireError.wrongSession }
+    var journal = self.checkpoint(current, builder: builder, at: Date(), ending: true)
     journal.workout.exercises = exercises
-    journal.workout.modifiedAt = Date()
-    journal.elapsedSeconds = builder.elapsedTime
-    journal.workout.activeDurationSeconds = min(builder.elapsedTime,
-      journal.workout.endedAt.timeIntervalSince(journal.workout.startedAt))
     journal.stage = .ending
     // If storage is unavailable, leave the workout running and let the person retry.
     try archive?.saveJournal(journal)
@@ -268,6 +264,7 @@ final class WatchWorkoutController: NSObject, ObservableObject {
         try await awaitTransition(.stopped) { session.stopActivity(with: journal.workout.endedAt) }
       }
       try await endCollection(builder, at: journal.workout.endedAt)
+      journal = self.checkpoint(journal, builder: builder, at: journal.workout.endedAt, ending: true)
       journal.stage = .collectionEnded
       rememberRetry(builder, journal: journal)
       try archive?.saveJournal(journal)
@@ -365,8 +362,7 @@ final class WatchWorkoutController: NSObject, ObservableObject {
       next.append(ExerciseEntry(name: name, sets: [set]))
     }
     journal.workout.exercises = next
-    journal.workout.endedAt = Date()
-    journal.workout.modifiedAt = Date()
+    if let builder { journal = self.checkpoint(journal, builder: builder, at: Date()) }
     try archive?.saveJournal(journal)
     self.journal = journal
     exercises = next
@@ -524,6 +520,14 @@ final class WatchWorkoutController: NSObject, ObservableObject {
     updated.pauses = original.pauses.filter {
       $0.startedAt >= saved.startDate && $0.endedAt <= saved.endDate && $0.endedAt >= $0.startedAt
     }
+    let events = pauseEvents(saved.workoutEvents ?? [])
+    if !events.isEmpty {
+      // The saved workout can contain pauses recorded while this process was suspended.
+      var recovered = WatchJournal(workout: updated)
+      recovered.workout.pauses = []
+      recovered.capturePauses(events, through: saved.endDate, ending: true)
+      updated.pauses = recovered.workout.pauses
+    }
     updated.healthExportState = .saved
     if (saved.metadata?["app.heznpc.outdoorlog.summaryRecovery"] as? Bool) == true {
       updated.healthExportMessage = (saved.metadata?["app.heznpc.outdoorlog.summaryRecoveryIncludesPauses"] as? Bool) == true
@@ -562,6 +566,9 @@ final class WatchWorkoutController: NSObject, ObservableObject {
         configure(session: recovered, builder: builder)
         collectionBegan = true
         exercises = journal.workout.exercises
+        let checkpoint = self.checkpoint(journal, builder: builder, at: Date())
+        self.journal = checkpoint
+        try archive?.saveJournal(checkpoint)
         state = WatchWorkoutState(sessionID: journal.workout.id,
           phase: recovered.state == .paused ? .paused : .running, kind: journal.workout.kind,
           startedAt: journal.workout.startedAt, elapsedSeconds: builder.elapsedTime,
@@ -611,20 +618,24 @@ final class WatchWorkoutController: NSObject, ObservableObject {
   }
 
   private func preserveInterrupted(_ journal: WatchJournal) async throws {
-    var workout = journal.workout
-    let saved = try await findSavedWorkout(id: workout.id)
-    // The original journal can only be cleared by this session's completion.
-    guard self.journal?.workout.id == workout.id else { return }
+    let saved = try await findSavedWorkout(id: journal.workout.id)
+    // The lookup suspends while final builder events may improve this journal.
+    // Use that latest bounded checkpoint, and never clear another session.
+    guard let latest = self.journal, latest.workout.id == journal.workout.id else { return }
+    var checkpoint = latest
+    // If recovery cannot find an active session, only the last durable checkpoint is known.
+    checkpoint.capturePauses([], through: checkpoint.workout.endedAt, ending: true)
+    var workout = checkpoint.workout
     if let saved {
       workout = applyingSavedWorkout(saved, to: workout)
     } else {
       workout.healthExportState = .failed
-      workout.activeDurationSeconds = min(journal.elapsedSeconds,
+      workout.activeDurationSeconds = min(checkpoint.elapsedSeconds,
         workout.endedAt.timeIntervalSince(workout.startedAt))
       workout.healthExportMessage = "운동이 중단되었습니다. 마지막으로 기기에 저장한 기록을 복구했으며 건강 앱 저장 완료는 확인되지 않았습니다."
     }
     workout.modifiedAt = Date()
-    state.elapsedSeconds = journal.elapsedSeconds
+    state.elapsedSeconds = checkpoint.elapsedSeconds
     exercises = workout.exercises
     try storeCompletion(workout)
   }
@@ -641,12 +652,10 @@ final class WatchWorkoutController: NSObject, ObservableObject {
     state.elapsedSeconds = max(0, builder.elapsedTime)
     tickCount += 1
     if tickCount % 5 == 0 { publish() }
-    if tickCount % 15 == 0, var journal, journal.stage == .recording {
-      journal.workout.endedAt = Date()
-      journal.elapsedSeconds = state.elapsedSeconds
-      journal.workout.activeDurationSeconds = min(state.elapsedSeconds,
-        journal.workout.endedAt.timeIntervalSince(journal.workout.startedAt))
-      do { try archive?.saveJournal(journal); self.journal = journal }
+    if tickCount % 15 == 0, let journal, journal.stage == .recording {
+      let checkpoint = self.checkpoint(journal, builder: builder, at: Date())
+      self.journal = checkpoint
+      do { try archive?.saveJournal(checkpoint) }
       catch { notice = "운동 중간 저장 실패: \(error.localizedDescription)" }
     }
     if tickCount % 30 == 0 { retryTransfer() }
@@ -656,6 +665,37 @@ final class WatchWorkoutController: NSObject, ObservableObject {
     state.updatedAt = max(Date(), state.updatedAt.addingTimeInterval(0.001))
     if let message = state.message { state.message = String(message.prefix(2000)) }
     connection.publish(state)
+  }
+
+  private func pauseEvents(_ events: [HKWorkoutEvent]) -> [WatchPauseEvent] {
+    events.compactMap { event in
+      switch event.type {
+      case .pause, .motionPaused: return WatchPauseEvent(date: event.dateInterval.start, paused: true)
+      case .resume, .motionResumed: return WatchPauseEvent(date: event.dateInterval.start, paused: false)
+      default: return nil
+      }
+    }
+  }
+
+  private func checkpoint(_ original: WatchJournal, builder: HKLiveWorkoutBuilder, at date: Date,
+    ending: Bool = false, event: WatchPauseEvent? = nil) -> WatchJournal {
+    var checkpoint = original
+    checkpoint.captureTiming(at: date, elapsedSeconds: builder.elapsedTime, ending: ending)
+    checkpoint.workout.modifiedAt = Date()
+    let hasEnded = checkpoint.stage != .recording
+    checkpoint.capturePauses(pauseEvents(builder.workoutEvents) + (event.map { [$0] } ?? []),
+      through: checkpoint.workout.endedAt)
+    if hasEnded, session?.state != .running {
+      // Late pause events are still useful, but their open interval ends at the
+      // already fixed stop time even when the builder callback arrives later.
+      checkpoint.capturePauses([], through: checkpoint.workout.endedAt, ending: true)
+    }
+    if hasEnded || session?.state == .running {
+      // An old open pause plus a recovered running session does not reveal its resume time.
+      // Keep complete event pairs, and let later builder/saved-workout events fill the gap.
+      checkpoint.pauseStartedAt = nil
+    }
+    return checkpoint
   }
 
   private func summaryNotes() -> String {
@@ -761,9 +801,22 @@ final class WatchWorkoutController: NSObject, ObservableObject {
     }
   }
 
-  private func sessionChanged(_ changedSession: HKWorkoutSession, to newState: HKWorkoutSessionState) {
+  private func sessionChanged(_ changedSession: HKWorkoutSession, to newState: HKWorkoutSessionState, at date: Date) {
     guard changedSession === session else { return }
-    if transition?.0 == newState { resolveTransition(.success(())) }
+    var transitionResult: Result<Void, Error> = .success(())
+    if !finishInProgress, pendingCompletion == nil, let journal, journal.stage == .recording,
+      let builder, [.running, .paused, .stopped, .ended].contains(newState) {
+      let ended = newState == .stopped || newState == .ended
+      let event = ended ? nil : WatchPauseEvent(date: date, paused: newState == .paused)
+      let checkpoint = self.checkpoint(journal, builder: builder, at: ended ? date : Date(), ending: ended, event: event)
+      // Preserve the actual transition in memory even when protected-file persistence fails.
+      self.journal = checkpoint
+      do { try archive?.saveJournal(checkpoint) }
+      catch {
+        notice = "운동 상태는 변경되었지만 중간 기록을 저장하지 못했습니다: \(error.localizedDescription)"
+        transitionResult = .failure(error)
+      }
+    }
     switch newState {
     case .running:
       if !finishInProgress, journal?.stage == .recording, pendingCompletion == nil { state.phase = .running }
@@ -787,6 +840,8 @@ final class WatchWorkoutController: NSObject, ObservableObject {
       }
     default: break
     }
+    // A command succeeds only once its pause/resume checkpoint is durable.
+    if transition?.0 == newState { resolveTransition(transitionResult) }
     publish()
   }
 
@@ -794,12 +849,23 @@ final class WatchWorkoutController: NSObject, ObservableObject {
     guard failedSession === session else { return }
     resolveTransition(.failure(error))
     notice = error.localizedDescription
-    guard !finishInProgress, let journal else { return }
+    guard !finishInProgress, pendingCompletion == nil, let journal else { return }
+    let checkpoint = builder.map { self.checkpoint(journal, builder: $0, at: Date(), ending: true) } ?? journal
+    self.journal = checkpoint
     state.phase = .failed
     Task {
-      do { try await preserveInterrupted(journal) }
+      do { try await preserveInterrupted(checkpoint) }
       catch { notice = error.localizedDescription }
     }
+  }
+
+  private func collectedEvents(_ builder: HKLiveWorkoutBuilder) {
+    guard builder === self.builder, !finishInProgress, pendingCompletion == nil,
+      let journal, journal.stage == .recording || journal.stage == .ending else { return }
+    let checkpoint = self.checkpoint(journal, builder: builder, at: Date())
+    self.journal = checkpoint
+    do { try archive?.saveJournal(checkpoint) }
+    catch { notice = "휴식 구간 저장 실패: \(error.localizedDescription)" }
   }
 
   private func collected(_ builder: HKLiveWorkoutBuilder, types: Set<HKSampleType>) {
@@ -824,7 +890,7 @@ final class WatchWorkoutController: NSObject, ObservableObject {
 extension WatchWorkoutController: HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDelegate {
   nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didChangeTo toState: HKWorkoutSessionState,
     from fromState: HKWorkoutSessionState, date: Date) {
-    Task { @MainActor in self.sessionChanged(workoutSession, to: toState) }
+    Task { @MainActor in self.sessionChanged(workoutSession, to: toState, at: date) }
   }
 
   nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
@@ -835,5 +901,7 @@ extension WatchWorkoutController: HKWorkoutSessionDelegate, HKLiveWorkoutBuilder
     Task { @MainActor in self.collected(workoutBuilder, types: collectedTypes) }
   }
 
-  nonisolated func workoutBuilderDidCollectEvent(_ workoutBuilder: HKLiveWorkoutBuilder) {}
+  nonisolated func workoutBuilderDidCollectEvent(_ workoutBuilder: HKLiveWorkoutBuilder) {
+    Task { @MainActor in self.collectedEvents(workoutBuilder) }
+  }
 }

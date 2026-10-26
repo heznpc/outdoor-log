@@ -9,6 +9,18 @@ import XCTest
     return directory
   }
 
+  func testLongPlaceNameCanStartAndKeepsFullPlaceMetadata() throws {
+    let directory = try directory()
+    let controller = PhoneWorkoutController(directory: directory)
+    let name = String(repeating: "긴 장소명", count: 50)
+    try controller.start(kind: .strength, placeID: "long-name-place", placeName: name)
+    let saved = try XCTUnwrap(controller.draft?.workout)
+    XCTAssertLessThanOrEqual(saved.title.count, 160)
+    XCTAssertTrue(saved.title.hasSuffix(WorkoutKind.strength.title))
+    XCTAssertEqual(saved.placeName, name)
+    XCTAssertEqual(PhoneWorkoutController(directory: directory).draft?.workout, saved)
+  }
+
   func testOverdueDraftCanBeReopenedAndSavedWithActualTimes() throws {
     let directory = try directory()
     let start = Date().addingTimeInterval(-8 * 24 * 3600)

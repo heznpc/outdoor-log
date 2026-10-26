@@ -36,3 +36,4 @@ notes/
 
 # Raw catalog downloads stay local; normalized, attributed resources are tracked.
 tools/catalog/raw/
+/Config/CatalogEndpoint.xcconfig

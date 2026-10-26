@@ -14,7 +14,9 @@ final class CatalogStore {
   private(set) var errorMessage: String?
   private(set) var favoriteIDs = Set<String>()
   private(set) var manifestURL: String
+  let publishedManifestURL: String
   private(set) var regions: [(code: String, name: String)] = []
+  private(set) var regionCoverage: [CatalogRegionCoverage] = []
   private(set) var equipmentKinds: [String] = []
   private(set) var recordPlaceChoices: [PlaceChoice] = []
   private(set) var nationalSummary: CatalogSourceSummary?
@@ -33,6 +35,7 @@ final class CatalogStore {
     bundledURL: URL? = Bundle.main.url(forResource: "catalog", withExtension: "json"),
     regionalURL: URL? = nil, coordinateSupplementURL: URL? = nil,
     serviceKeyStorage: any CatalogServiceKeyStorage = CatalogServiceKeychain(),
+    publishedManifestURL: String = Bundle.main.object(forInfoDictionaryKey: "OutdoorLogCatalogManifestURL") as? String ?? "",
     loadImmediately: Bool = true) {
     self.defaults = defaults
     self.directory = directory ?? (try? ProtectedFile.directory().appendingPathComponent("Catalog", isDirectory: true))
@@ -40,6 +43,7 @@ final class CatalogStore {
     self.regionalURL = regionalURL ?? bundledURL?.deletingLastPathComponent().appendingPathComponent("regional-equipment.json")
     self.coordinateSupplementURL = coordinateSupplementURL ?? bundledURL?.deletingLastPathComponent().appendingPathComponent("coordinate-supplements.json")
     self.serviceKeyStorage = serviceKeyStorage
+    self.publishedManifestURL = Self.configuredManifest(publishedManifestURL)
     manifestURL = defaults.string(forKey: "catalog.manifestURL") ?? ""
     favoriteIDs = Set(defaults.stringArray(forKey: "catalog.favoriteIDs") ?? [])
     hasOfficialAPIKey = (try? serviceKeyStorage.load()) != nil
@@ -47,6 +51,19 @@ final class CatalogStore {
   }
 
   var hasNationalCatalog: Bool { nationalSummary != nil }
+  var effectiveManifestURL: String { manifestURL.isEmpty ? publishedManifestURL : manifestURL }
+  var refreshSourceTitle: String {
+    if !manifestURL.isEmpty { return "사용자 지정 카탈로그" }
+    if !publishedManifestURL.isEmpty { return "앱에서 제공하는 공개 카탈로그" }
+    return hasOfficialAPIKey ? "공공데이터 공식 API" : "공공데이터포털 공개 파일"
+  }
+
+  nonisolated static func configuredManifest(_ value: String) -> String {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    // Unexpanded Xcode settings are not distribution endpoints.
+    guard !trimmed.contains("$("), (try? CatalogValidation.httpsURL(trimmed)) != nil else { return "" }
+    return trimmed
+  }
   var unavailableFavoriteIDs: [String] { favoriteIDs.subtracting(placeIDs).sorted() }
   func isFavorite(_ place: EquipmentPlace) -> Bool { favoriteIDs.contains(place.id) }
   func isFavorite(_ id: String) -> Bool { favoriteIDs.contains(id) }
@@ -163,7 +180,9 @@ final class CatalogStore {
   }
 
   func reload() async {
-    if manifestURL.isEmpty { await refreshNational() } else { await refresh() }
+    if effectiveManifestURL.isEmpty {
+      await refreshNational(usePortalFallback: !hasOfficialAPIKey)
+    } else { await refresh() }
   }
 
   func clearError() { errorMessage = nil }
@@ -206,12 +225,18 @@ final class CatalogStore {
     updateProgress = "공개 카탈로그를 내려받는 중"
     defer { isRefreshing = false; updateProgress = "" }
     do {
-      let url = try CatalogValidation.httpsURL(manifestURL)
-      let minimumVersion = version
+      let url = try CatalogValidation.httpsURL(effectiveManifestURL)
+      // Publisher versions are independent of API capture dates and imported
+      // catalogs. Compare a release only with a previous release of this feed.
+      let versions = defaults.dictionary(forKey: "catalog.manifestVersions") as? [String: Int] ?? [:]
+      let minimumVersion = versions[url.absoluteString] ?? 0
       let result = try await Self.fetchManifest(url, minimumVersion: minimumVersion,
         preservingCoordinatesFrom: currentPack)
       try Task.checkCancellation()
       try await install(result)
+      var acceptedVersions = versions
+      acceptedVersions[url.absoluteString] = result.version
+      defaults.set(acceptedVersions, forKey: "catalog.manifestVersions")
       status = "카탈로그 갱신 완료 · \(places.count)곳"
     } catch is CancellationError {
       status = "갱신을 취소했습니다. 기존 목록을 유지합니다."
@@ -340,6 +365,7 @@ final class CatalogStore {
     regions = Dictionary(grouping: places, by: \.regionCode).compactMap { key, values in
       values.first.map { (code: key, name: $0.regionName) }
     }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    regionCoverage = CatalogRegionCoverage.summarize(places)
     equipmentKinds = Set(places.flatMap(\.equipmentKinds)).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     recordPlaceChoices = places.map { PlaceChoice(id: $0.id, name: $0.name, detail: $0.regionName + " · " + $0.address) }
     nationalSummary = pack.sources?.first { $0.id == NationalEquipment.sourceID }

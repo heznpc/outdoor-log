@@ -12,6 +12,8 @@ struct RecordsView: View {
   @State private var importing = false
   @State private var archive: WorkoutArchiveDocument?
   @State private var notice: String?
+  @State private var pendingRestore: Data?
+  @State private var confirmingRestore = false
 
   var body: some View {
     NavigationStack {
@@ -50,8 +52,7 @@ struct RecordsView: View {
             do { archive = WorkoutArchiveDocument(data: try store.exportData()); exporting = true }
             catch { notice = error.localizedDescription }
           }.disabled(!store.ready)
-          Button("기록 파일 가져오기", systemImage: "square.and.arrow.down") { importing = true }
-            .disabled(!store.ready)
+          Button(store.ready ? "기록 파일 가져오기" : "백업 파일로 기록 복구", systemImage: "square.and.arrow.down") { importing = true }
           Text("기록은 이 기기에 저장됩니다. 앱을 삭제하기 전에 직접 내보내 주세요. 내보낸 파일에는 장소와 개인 운동 정보가 포함됩니다.")
             .font(.footnote).foregroundStyle(.secondary)
         }
@@ -76,9 +77,28 @@ struct RecordsView: View {
           defer { if scoped { url.stopAccessingSecurityScopedResource() } }
           let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
           guard size <= 25_000_000 else { throw LocalDataError.invalidRecord }
-          try store.importData(Data(contentsOf: url))
-          notice = "기존 기록을 유지하고 새로운 기록을 가져왔습니다."
+          let data = try Data(contentsOf: url)
+          if store.ready {
+            try store.importData(data)
+            notice = "기존 기록을 유지하고 새로운 기록을 가져왔습니다."
+          } else {
+            pendingRestore = data
+            confirmingRestore = true
+          }
         } catch { notice = error.localizedDescription }
+      }
+      .confirmationDialog("선택한 백업으로 기록을 복구할까요?", isPresented: $confirmingRestore, titleVisibility: .visible) {
+        Button("원본을 보존하고 백업 복구") {
+          guard let data = pendingRestore else { return }
+          defer { pendingRestore = nil }
+          do {
+            try store.restoreUnreadableArchive(from: data)
+            notice = "백업의 기록을 복구했습니다. 읽지 못한 원본 파일은 기기에 별도로 보존했습니다."
+          } catch { notice = error.localizedDescription }
+        }
+        Button("취소", role: .cancel) { pendingRestore = nil }
+      } message: {
+        Text("읽지 못한 현재 파일을 별도로 보존한 뒤, 선택한 백업의 기록과 삭제 이력으로 복구합니다. 백업 이후의 기록은 복구 목록에 없을 수 있습니다.")
       }
     }
   }

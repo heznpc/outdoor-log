@@ -117,4 +117,61 @@ final class WatchProtocolTests: XCTestCase {
     XCTAssertFalse(try WatchCommandReply.decode(data, commandID: id).accepted)
     XCTAssertThrowsError(try WatchCommandReply.decode(data, commandID: UUID()))
   }
+
+  func testConfirmedSaveReplacesQueuedFailureEvenAfterClockMovesBackward() {
+    let saved = record()
+    var failed = saved
+    failed.healthWorkoutID = nil
+    failed.healthExportState = .failed
+    failed.modifiedAt = saved.modifiedAt.addingTimeInterval(3600)
+    XCTAssertTrue(WatchWire.shouldReplacePendingCompletion(saved, after: failed))
+    XCTAssertFalse(WatchWire.shouldReplacePendingCompletion(failed, after: saved))
+    var newer = saved
+    newer.modifiedAt = saved.modifiedAt.addingTimeInterval(1)
+    XCTAssertTrue(WatchWire.shouldReplacePendingCompletion(newer, after: saved))
+    XCTAssertFalse(WatchWire.shouldReplacePendingCompletion(saved, after: newer))
+  }
+
+  func testLargeRecordAndExactRevisionAcknowledgementUseFileEnvelope() throws {
+    var workout = record()
+    workout.exercises = (0..<15).map { index in
+      ExerciseEntry(name: String(repeating: "가", count: 77) + "\(index)",
+        sets: (0..<20).map { _ in ExerciseSet(repetitions: 100, weightKilograms: 2000) })
+    }
+    workout.pauses = (0..<1000).map { index in
+      let pause = workout.startedAt.addingTimeInterval(Double(index) * 1.5)
+      return WorkoutPause(startedAt: pause, endedAt: pause.addingTimeInterval(0.25))
+    }
+    let completion = WatchPacket(kind: .completed, workout: workout)
+    XCTAssertThrowsError(try WatchWire.encode(completion))
+    let data = try WatchWire.encodeTransfer(completion)
+    XCTAssertGreaterThan(data.count, WatchWire.maximumBytes)
+    XCTAssertEqual(try WatchWire.decodeTransfer(data).workout, workout)
+    let ack = WatchPacket(kind: .acknowledgement, workout: workout, acknowledgedWorkoutID: workout.id)
+    let received = try WatchWire.decodeTransfer(WatchWire.encodeTransfer(ack))
+    XCTAssertTrue(WatchWire.matchesAcknowledgement(received, workout: workout))
+    workout.modifiedAt = workout.modifiedAt.addingTimeInterval(1)
+    XCTAssertFalse(WatchWire.matchesAcknowledgement(received, workout: workout))
+  }
+
+  func testFileEnvelopeCannotQueueLiveCommandsOrExceedArchiveBound() throws {
+    let command = WatchPacket(kind: .command, command: WatchCommand(action: .start, sessionID: UUID()))
+    XCTAssertThrowsError(try WatchWire.encodeTransfer(command))
+    XCTAssertThrowsError(try WatchWire.decodeTransfer(JSONEncoder().encode(command)))
+    XCTAssertThrowsError(try WatchWire.decodeTransfer(Data(repeating: 0, count: WatchWire.maximumTransferBytes + 1)))
+  }
+
+  func testReceivedFileBytesOutliveTemporaryURLAndRejectChangedContent() throws {
+    let data = try WatchWire.encodeTransfer(WatchPacket(kind: .completed, workout: record()))
+    let identifier = WatchTransferFile.identifier(for: data)
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+    defer { try? FileManager.default.removeItem(at: url) }
+    try data.write(to: url)
+    let received = try WatchTransferFile.read(url, identifier: identifier)
+    try FileManager.default.removeItem(at: url)
+    XCTAssertEqual(try WatchWire.decodeTransfer(received).workout?.title, "공원 근력 운동")
+    try Data("changed".utf8).write(to: url)
+    XCTAssertThrowsError(try WatchTransferFile.read(url, identifier: identifier))
+    XCTAssertThrowsError(try WatchTransferFile.read(url, identifier: "../outside"))
+  }
 }

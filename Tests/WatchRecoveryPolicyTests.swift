@@ -167,4 +167,110 @@ final class WatchRecoveryPolicyTests: XCTestCase {
     XCTAssertEqual(command.sessionID, current.sessionID)
     XCTAssertEqual(command.placeID, current.placeID)
   }
+
+  func testPauseSurvivesJournalRelaunchUntilActualResumeArrives() throws {
+    var journal = WatchJournal(workout: workout(), elapsedSeconds: 700)
+    let pause = journal.workout.startedAt.addingTimeInterval(100)
+    let resume = journal.workout.startedAt.addingTimeInterval(300)
+    journal.capturePauses([WatchPauseEvent(date: pause, paused: true)], through: journal.workout.endedAt)
+    XCTAssertEqual(journal.pauseStartedAt, pause)
+    XCTAssertTrue(journal.workout.pauses.isEmpty)
+    var restored = try JSONDecoder().decode(WatchJournal.self, from: JSONEncoder().encode(journal))
+    restored.capturePauses([WatchPauseEvent(date: resume, paused: false)], through: restored.workout.endedAt)
+    XCTAssertEqual(restored.workout.pauses, [WorkoutPause(startedAt: pause, endedAt: resume)])
+    XCTAssertNil(restored.pauseStartedAt)
+    try restored.validate()
+  }
+
+  func testLateDuplicateBuilderEventsUseEventTimesWithoutDuplicatingPauses() {
+    var journal = WatchJournal(workout: workout())
+    let start = journal.workout.startedAt
+    let pause = WatchPauseEvent(date: start.addingTimeInterval(100), paused: true)
+    let resume = WatchPauseEvent(date: start.addingTimeInterval(300), paused: false)
+    journal.capturePauses([pause, resume], through: journal.workout.endedAt)
+    journal.capturePauses([resume, pause, resume, pause], through: journal.workout.endedAt)
+    XCTAssertEqual(journal.workout.pauses, [WorkoutPause(startedAt: pause.date, endedAt: resume.date)])
+    XCTAssertNil(journal.pauseStartedAt)
+  }
+
+  func testFinishWhilePausedClosesOnlyAtKnownWorkoutEnd() {
+    var journal = WatchJournal(workout: workout())
+    let pause = journal.workout.startedAt.addingTimeInterval(700)
+    journal.capturePauses([WatchPauseEvent(date: pause, paused: true)],
+      through: journal.workout.endedAt, ending: true)
+    XCTAssertEqual(journal.workout.pauses, [WorkoutPause(startedAt: pause, endedAt: journal.workout.endedAt)])
+    XCTAssertNil(journal.pauseStartedAt)
+  }
+
+  func testStoppedJournalKeepsItsEndAcrossLateEventsAndRelaunch() throws {
+    var journal = WatchJournal(workout: workout())
+    let start = journal.workout.startedAt
+    let stoppedAt = start.addingTimeInterval(600)
+    journal.captureTiming(at: stoppedAt, elapsedSeconds: 550, ending: true)
+    XCTAssertEqual(journal.stage, .ending)
+    XCTAssertEqual(journal.workout.endedAt, stoppedAt)
+
+    var restored = try JSONDecoder().decode(WatchJournal.self, from: JSONEncoder().encode(journal))
+    restored.captureTiming(at: stoppedAt.addingTimeInterval(120), elapsedSeconds: 550)
+    restored.capturePauses([
+      WatchPauseEvent(date: start.addingTimeInterval(100), paused: true),
+      WatchPauseEvent(date: start.addingTimeInterval(150), paused: false),
+      WatchPauseEvent(date: stoppedAt.addingTimeInterval(10), paused: true)
+    ], through: restored.workout.endedAt, ending: true)
+    XCTAssertEqual(restored.workout.endedAt, stoppedAt)
+    XCTAssertEqual(restored.elapsedSeconds, 550)
+    XCTAssertEqual(restored.workout.activeDurationSeconds, 550)
+    XCTAssertEqual(restored.workout.pauses, [WorkoutPause(startedAt: start.addingTimeInterval(100),
+      endedAt: start.addingTimeInterval(150))])
+    XCTAssertNil(restored.pauseStartedAt)
+    try restored.validate()
+  }
+
+  func testRepeatedEndingCannotExtendStopOrLateOpenPause() throws {
+    var journal = WatchJournal(workout: workout())
+    let start = journal.workout.startedAt
+    let stoppedAt = start.addingTimeInterval(600)
+    journal.captureTiming(at: stoppedAt, elapsedSeconds: 500, ending: true)
+    journal.captureTiming(at: stoppedAt.addingTimeInterval(300), elapsedSeconds: 500, ending: true)
+    journal.capturePauses([
+      WatchPauseEvent(date: start.addingTimeInterval(500), paused: true),
+      WatchPauseEvent(date: stoppedAt.addingTimeInterval(100), paused: false)
+    ], through: journal.workout.endedAt, ending: true)
+    XCTAssertEqual(journal.workout.endedAt, stoppedAt)
+    XCTAssertEqual(journal.workout.pauses, [WorkoutPause(startedAt: start.addingTimeInterval(500), endedAt: stoppedAt)])
+    XCTAssertNil(journal.pauseStartedAt)
+    try journal.validate()
+  }
+
+  func testPauseRecoveryDoesNotInventMissingBoundariesOrUseFutureEvents() {
+    let record = workout()
+    let timeline = WatchPauseTimeline(events: [
+      WatchPauseEvent(date: record.startedAt.addingTimeInterval(-1), paused: true),
+      WatchPauseEvent(date: record.startedAt.addingTimeInterval(50), paused: false),
+      WatchPauseEvent(date: record.startedAt.addingTimeInterval(200), paused: true),
+      WatchPauseEvent(date: record.endedAt.addingTimeInterval(1), paused: false)
+    ], startedAt: record.startedAt, through: record.endedAt)
+    XCTAssertTrue(timeline.pauses.isEmpty)
+    XCTAssertEqual(timeline.pauseStartedAt, record.startedAt.addingTimeInterval(200))
+  }
+
+  func testLegacyJournalWithoutOpenPauseStillDecodes() throws {
+    let journal = WatchJournal(workout: workout())
+    let data = try JSONEncoder().encode(journal)
+    let restored = try JSONDecoder().decode(WatchJournal.self, from: data)
+    XCTAssertNil(restored.pauseStartedAt)
+    try restored.validate()
+  }
+
+  func testJournalRejectsInvalidElapsedAndOverlappingOpenPause() {
+    var journal = WatchJournal(workout: workout(), elapsedSeconds: .infinity)
+    XCTAssertThrowsError(try journal.validate())
+    journal.elapsedSeconds = -1
+    XCTAssertThrowsError(try journal.validate())
+    journal.elapsedSeconds = 700
+    journal.workout.pauses = [WorkoutPause(startedAt: journal.workout.startedAt.addingTimeInterval(100),
+      endedAt: journal.workout.startedAt.addingTimeInterval(300))]
+    journal.pauseStartedAt = journal.workout.startedAt.addingTimeInterval(200)
+    XCTAssertThrowsError(try journal.validate())
+  }
 }

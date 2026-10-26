@@ -1,0 +1,4 @@
+// The catalog publication artifact supplies this optional, public endpoint.
+// Its absence leaves the bundled catalog and manual import available.
+OUTDOOR_LOG_CATALOG_MANIFEST_URL =
+#include? "CatalogEndpoint.xcconfig"

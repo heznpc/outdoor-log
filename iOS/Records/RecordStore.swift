@@ -6,6 +6,8 @@ struct RecordArchive: Codable {
   var records: [PersonalWorkout] = []
   // Remember explicitly deleted Watch deliveries so a delayed retry cannot resurrect them.
   var deletedIDs: Set<UUID> = []
+  // Optional so archives written before Health-linked deletion tracking remain readable.
+  var deletedHealthIDs: Set<UUID>? = nil
 }
 
 @MainActor @Observable
@@ -14,6 +16,7 @@ final class RecordStore {
   private(set) var ready = false
   var notice: String?
   private var deletedIDs: Set<UUID> = []
+  private var deletedHealthIDs: Set<UUID> = []
   private var file: URL?
   private let suppliedDirectory: URL?
   private let maximumArchiveBytes: Int
@@ -37,9 +40,11 @@ final class RecordStore {
         try Self.validate(archive)
         records = archive.records.sorted { $0.startedAt > $1.startedAt }
         deletedIDs = archive.deletedIDs
+        deletedHealthIDs = archive.deletedHealthIDs ?? []
       } else {
         records = []
         deletedIDs = []
+        deletedHealthIDs = []
       }
       ready = true
       notice = nil
@@ -56,7 +61,9 @@ final class RecordStore {
     var tombstones = deletedIDs
     tombstones.remove(record.id)
     tombstones.subtract(record.watchSourceIDs ?? [])
-    try persist(next, deleted: tombstones)
+    var healthTombstones = deletedHealthIDs
+    if let id = record.healthWorkoutID { healthTombstones.remove(id) }
+    try persist(next, deleted: tombstones, deletedHealth: healthTombstones)
   }
 
   func saveEdited(_ draft: PersonalWorkout, original: PersonalWorkout) throws {
@@ -105,11 +112,13 @@ final class RecordStore {
 
   func remove(_ id: UUID) throws {
     var tombstones = deletedIDs
+    var healthTombstones = deletedHealthIDs
     tombstones.insert(id)
     if let record = records.first(where: { $0.id == id }) {
       tombstones.formUnion(record.watchSourceIDs ?? [])
+      if let healthID = record.healthWorkoutID { healthTombstones.insert(healthID) }
     }
-    try persist(records.filter { $0.id != id }, deleted: tombstones)
+    try persist(records.filter { $0.id != id }, deleted: tombstones, deletedHealth: healthTombstones)
   }
 
   func hasDurableRecordOrDeletion(_ id: UUID) -> Bool {
@@ -169,9 +178,36 @@ final class RecordStore {
     do {
       try record.validate()
       guard record.origin == .watch else { throw LocalDataError.invalidRecord }
-      if deletedIDs.contains(record.id) { return true }
+      if deletedIDs.contains(record.id) {
+        // The first delivery may have failed to save Health data. A later
+        // delivery can reveal its UUID after the local record was deleted.
+        if let healthID = record.healthWorkoutID, !deletedHealthIDs.contains(healthID),
+          !records.contains(where: { $0.healthWorkoutID == healthID }) {
+          try persist(records, deleted: deletedIDs, deletedHealth: deletedHealthIDs.union([healthID]))
+        }
+        return true
+      }
       let direct = records.first { $0.id == record.id || ($0.watchSourceIDs?.contains(record.id) ?? false) }
+      if record.healthWorkoutID.map({ deletedHealthIDs.contains($0) }) == true {
+        if let direct {
+          guard direct.origin != .phone else { throw RecordHealthLinkError.conflictingIdentity }
+          // Deleting a separate Health link is not permission to remove a
+          // surviving Watch record or to reattach that deleted Health identity.
+          return true
+        }
+        // A delayed older payload may not know its Health UUID yet. Remember
+        // the delivery ID before ACK so that payload also stays deleted.
+        try persist(records, deleted: deletedIDs.union([record.id]).union(record.watchSourceIDs ?? []))
+        return true
+      }
       let linked = records.first { record.healthWorkoutID != nil && $0.healthWorkoutID == record.healthWorkoutID }
+      // A retry may fill an absent Health UUID, but it cannot change an already
+      // committed identity or claim an independently recorded phone workout.
+      if let direct, let storedID = direct.healthWorkoutID, let incomingID = record.healthWorkoutID,
+        storedID != incomingID { throw RecordHealthLinkError.conflictingIdentity }
+      guard direct?.origin != .phone, linked?.origin != .phone else {
+        throw RecordHealthLinkError.conflictingIdentity
+      }
       if var merged = direct ?? linked {
         let firstAttachment = merged.origin == .healthLink
         let needsRecoveredTiming = merged.healthWorkoutID == nil && record.healthWorkoutID != nil
@@ -195,8 +231,10 @@ final class RecordStore {
             merged.pauses = record.pauses
           }
           merged.healthWorkoutID = healthID
+          if merged.healthExportState != .saved || record.healthExportMessage != nil {
+            merged.healthExportMessage = record.healthExportMessage
+          }
           merged.healthExportState = .saved
-          merged.healthExportMessage = nil
         }
         var next = records.filter { $0.id != merged.id && $0.id != linked?.id }
         next.append(merged)
@@ -215,7 +253,7 @@ final class RecordStore {
     guard ready else { throw LocalDataError.unreadable }
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys]
-    return try encoder.encode(RecordArchive(records: records, deletedIDs: deletedIDs))
+    return try encoder.encode(RecordArchive(records: records, deletedIDs: deletedIDs, deletedHealthIDs: deletedHealthIDs))
   }
 
   func importData(_ data: Data) throws {
@@ -227,7 +265,7 @@ final class RecordStore {
     let knownHealthIDs = Set(records.compactMap(\.healthWorkoutID))
     var additions = incoming.records.filter {
       known.isDisjoint(with: ($0.watchSourceIDs ?? []).union([$0.id]))
-        && ($0.healthWorkoutID.map { !knownHealthIDs.contains($0) } ?? true)
+        && ($0.healthWorkoutID.map { !knownHealthIDs.contains($0) && !deletedHealthIDs.contains($0) } ?? true)
     }
     for index in additions.indices {
       // An imported pending export is uncertain, not proof of a successful write.
@@ -240,12 +278,43 @@ final class RecordStore {
     let keptIDs = Set(keptRecords.flatMap { ($0.watchSourceIDs ?? []).union([$0.id]) })
     // Restore deletion history without deleting records already alive on this device.
     let restoredDeletions = deletedIDs.union(incoming.deletedIDs.subtracting(keptIDs))
-    try persist(keptRecords, deleted: restoredDeletions)
+    let keptHealthIDs = Set(keptRecords.compactMap(\.healthWorkoutID))
+    let restoredHealthDeletions = deletedHealthIDs.union((incoming.deletedHealthIDs ?? []).subtracting(keptHealthIDs))
+    try persist(keptRecords, deleted: restoredDeletions, deletedHealth: restoredHealthDeletions)
   }
 
-  private func persist(_ next: [PersonalWorkout], deleted: Set<UUID>) throws {
+  // Recovery is an explicit replacement action available only when the current
+  // archive cannot be opened. Keep its bytes before writing the validated backup.
+  func restoreUnreadableArchive(from data: Data) throws {
+    guard !ready, let file, data.count <= maximumArchiveBytes else { throw LocalDataError.unreadable }
+    var archive = try JSONDecoder().decode(RecordArchive.self, from: data)
+    try Self.validate(archive)
+    for index in archive.records.indices where archive.records[index].healthExportState == .pending {
+      archive.records[index].healthExportState = .failed
+      archive.records[index].healthExportMessage = "이전 저장 결과를 다시 확인해야 합니다."
+    }
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let restored = try encoder.encode(archive)
+    guard restored.count <= maximumArchiveBytes else { throw LocalDataError.archiveTooLarge }
+    // A missing/inaccessible original is a storage problem; retry opening it
+    // instead of treating its absence as permission to replace another archive.
+    guard FileManager.default.fileExists(atPath: file.path) else { throw LocalDataError.storageUnavailable }
+    let preserved = file.deletingLastPathComponent()
+      .appendingPathComponent("personal-workouts-unreadable-\(UUID().uuidString).json")
+    try FileManager.default.copyItem(at: file, to: preserved)
+    try ProtectedFile.writeData(restored, to: file)
+    records = archive.records.sorted { $0.startedAt > $1.startedAt }
+    deletedIDs = archive.deletedIDs
+    deletedHealthIDs = archive.deletedHealthIDs ?? []
+    ready = true
+    notice = nil
+  }
+
+  private func persist(_ next: [PersonalWorkout], deleted: Set<UUID>, deletedHealth: Set<UUID>? = nil) throws {
     guard ready, let file else { throw LocalDataError.storageUnavailable }
-    let archive = RecordArchive(records: next, deletedIDs: deleted)
+    let healthDeletions = deletedHealth ?? deletedHealthIDs
+    let archive = RecordArchive(records: next, deletedIDs: deleted, deletedHealthIDs: healthDeletions)
     try Self.validate(archive)
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys]
@@ -254,17 +323,20 @@ final class RecordStore {
     try ProtectedFile.writeData(data, to: file)
     records = next.sorted { $0.startedAt > $1.startedAt }
     deletedIDs = deleted
+    deletedHealthIDs = healthDeletions
     notice = nil
   }
 
   private static func validate(_ archive: RecordArchive) throws {
     guard archive.version == 1 else { throw LocalDataError.unsupportedVersion }
     guard archive.records.count <= 50_000, archive.deletedIDs.count <= 100_000,
+      (archive.deletedHealthIDs?.count ?? 0) <= 100_000,
       Set(archive.records.map(\.id)).count == archive.records.count,
       archive.records.allSatisfy({ !archive.deletedIDs.contains($0.id) })
     else { throw LocalDataError.invalidRecord }
     let healthIDs = archive.records.compactMap(\.healthWorkoutID)
-    guard Set(healthIDs).count == healthIDs.count else { throw LocalDataError.invalidRecord }
+    guard Set(healthIDs).count == healthIDs.count,
+      (archive.deletedHealthIDs ?? []).isDisjoint(with: healthIDs) else { throw LocalDataError.invalidRecord }
     var ownedIDs = Set<UUID>()
     for record in archive.records {
       let identifiers = (record.watchSourceIDs ?? []).union([record.id])
@@ -325,9 +397,36 @@ final class RecordStore {
       }
       if !conflicts.isEmpty { notes = combinedNotes(notes, "병합한 다른 개인 기록의 값:\n" + conflicts.joined(separator: "\n")) }
     } else {
-      if target.placeID == nil { target.placeID = source.placeID; target.placeName = source.placeName }
-      let knownExercises = Set(target.exercises.map(\.id))
-      target.exercises.append(contentsOf: source.exercises.filter { !knownExercises.contains($0.id) })
+      if target.placeID == nil && target.placeName == nil {
+        target.placeID = source.placeID
+        target.placeName = source.placeName
+      } else if (source.placeID != nil || source.placeName != nil),
+        (source.placeID != target.placeID || source.placeName != target.placeName) {
+        notes = combinedNotes(notes, "Watch에서 함께 보존한 장소: \(source.placeName ?? "이름 없음") (ID: \(source.placeID ?? "없음"))")
+      }
+      // A Health link restored from an archive may already contain the same
+      // exercise IDs. Retain additional and conflicting sets on first delivery.
+      for exercise in source.exercises {
+        guard let index = target.exercises.firstIndex(where: { $0.id == exercise.id }) else {
+          target.exercises.append(exercise)
+          continue
+        }
+        if target.exercises[index].name != exercise.name {
+          var alternative = exercise
+          alternative.id = UUID()
+          target.exercises.append(alternative)
+          continue
+        }
+        for set in exercise.sets {
+          if let existing = target.exercises[index].sets.first(where: { $0.id == set.id }) {
+            if existing != set {
+              var alternative = set
+              alternative.id = UUID()
+              target.exercises[index].sets.append(alternative)
+            }
+          } else { target.exercises[index].sets.append(set) }
+        }
+      }
     }
     target.notes = combinedNotes(target.notes, notes)
   }

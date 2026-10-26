@@ -87,6 +87,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		C0DEC0DE2026102600000001 /* Distribution.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/Distribution.xcconfig; sourceTree = "<group>"; };
 		A680235405B94C5EBB284B31 /* regional-equipment.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "regional-equipment.json"; sourceTree = "<group>"; };
 		A680235405B94C5EBB284B33 /* coordinate-supplements.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "coordinate-supplements.json"; sourceTree = "<group>"; };
 		0055FA0A74137C1ACF38AA26 /* WatchWire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchWire.swift; sourceTree = "<group>"; };
@@ -171,6 +172,7 @@
 		35914683D044D61D49172993 = {
 			isa = PBXGroup;
 			children = (
+				C0DEC0DE2026102600000001 /* Distribution.xcconfig */,
 				248DDFC43D65CF03097F10A4 /* iOS */,
 				A34834DCE880EE0A0C54040A /* Protocol */,
 				622CFE8F0EF99AFCE1A56DDB /* Resources */,
@@ -576,6 +578,7 @@
 		};
 		6E252A4D21176FF7C373B974 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = C0DEC0DE2026102600000001 /* Distribution.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = iOS/OutdoorLog.entitlements;
@@ -610,6 +613,7 @@
 		};
 		BA21201352B3854825CDA42B /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = C0DEC0DE2026102600000001 /* Distribution.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = iOS/OutdoorLog.entitlements;

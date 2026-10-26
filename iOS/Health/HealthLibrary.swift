@@ -319,18 +319,32 @@ final class HealthLibrary {
   }
 
   private static func pauses(in workout: HKWorkout) -> [WorkoutPause] {
+    pauseIntervals(events: workout.workoutEvents ?? [], startedAt: workout.startDate, endedAt: workout.endDate)
+  }
+
+  static func pauseIntervals(events: [HKWorkoutEvent], startedAt: Date, endedAt: Date) -> [WorkoutPause] {
     var start: Date?
     var result: [WorkoutPause] = []
-    for event in workout.workoutEvents ?? [] {
-      if event.type == .pause { start = event.dateInterval.start }
-      if event.type == .resume, let began = start {
-        let ended = event.dateInterval.start
-        if ended > began { result.append(WorkoutPause(startedAt: began, endedAt: ended)) }
+    let ordered = events.enumerated().sorted {
+      if $0.element.dateInterval.start == $1.element.dateInterval.start { return $0.offset < $1.offset }
+      return $0.element.dateInterval.start < $1.element.dateInterval.start
+    }
+    for (_, event) in ordered {
+      let date = event.dateInterval.start
+      guard date >= startedAt, date <= endedAt else { continue }
+      switch event.type {
+      case .pause, .motionPaused:
+        // Automatic and manual events can describe the same paused interval.
+        // A second pause must not discard its already recorded beginning.
+        if start == nil { start = date }
+      case .resume, .motionResumed:
+        if let began = start, date > began { result.append(WorkoutPause(startedAt: began, endedAt: date)) }
         start = nil
+      default: break
       }
     }
-    if let start, workout.endDate > start {
-      result.append(WorkoutPause(startedAt: start, endedAt: workout.endDate))
+    if let start, endedAt > start {
+      result.append(WorkoutPause(startedAt: start, endedAt: endedAt))
     }
     return result
   }

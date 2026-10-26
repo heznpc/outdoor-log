@@ -1,0 +1,193 @@
+name: Publish public equipment catalog
+
+on:
+  workflow_dispatch:
+    inputs:
+      first_deployment:
+        description: Confirm this is the first catalog publication (only when no prior Pages deployment exists)
+        type: boolean
+        default: false
+      geocode:
+        description: Resolve missing public facility addresses with the configured VWorld key
+        type: boolean
+        default: false
+  schedule:
+    - cron: '17 21 * * 0'
+
+# Scheduled publication is opt-in. First publication still requires setting up
+# Pages and explicitly dispatching this workflow from the default branch.
+concurrency:
+  group: public-catalog-pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && (github.event_name == 'workflow_dispatch' || vars.CATALOG_AUTO_PUBLISH == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pages: read
+      deployments: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check offline collector and release contracts
+        run: python -m unittest discover -s tools/catalog -p 'test_*.py'
+      - name: Restore optional coordinate evidence cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .catalog-history
+          key: public-catalog-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: public-catalog-
+      - name: Read configured Pages endpoint
+        id: pages
+        uses: actions/configure-pages@v5
+        # Does not create or enable a new public site automatically.
+        with:
+          enablement: false
+      - name: Verify whether any Pages deployment already exists
+        id: history
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const {owner, repo} = context.repo;
+            const {data: deployments} = await github.rest.repos.listDeployments(
+              {owner, repo, environment: 'github-pages', per_page: 1});
+            if (deployments.length > 0) {
+              const {data: statuses} = await github.rest.repos.listDeploymentStatuses(
+                {owner, repo, deployment_id: deployments[0].id, per_page: 1});
+              if (statuses.length === 0 || ['queued', 'pending', 'in_progress'].includes(statuses[0].state)) {
+                throw new Error('An unresolved Pages deployment exists; wait for it before replacing public files.');
+              }
+            }
+            // A job can fail after Pages is live, so failed history is still
+            // existing history and cannot justify an automatic first release.
+            core.setOutput('exists', String(deployments.length > 0));
+      - name: Restore and verify currently published manifest and packs
+        env:
+          PAGES_BASE_URL: ${{ steps.pages.outputs.base_url }}
+          PREVIOUS_DEPLOYMENT_EXISTS: ${{ steps.history.outputs.exists }}
+          FIRST_DEPLOYMENT: ${{ inputs.first_deployment || false }}
+        shell: bash
+        run: |
+          extra=()
+          if [[ "$FIRST_DEPLOYMENT" == 'true' ]]; then
+            extra+=(--first-deployment)
+          fi
+          python tools/catalog/publish_catalog.py restore-previous \
+            --base-url "$PAGES_BASE_URL" --output .catalog-published \
+            --deployment-exists "$PREVIOUS_DEPLOYMENT_EXISTS" "${extra[@]}"
+      - name: Prepare release identity
+        run: |
+          mkdir -p .catalog-work
+          echo "CATALOG_VERSION=$(date -u +%Y%m%d%H%M%S)" >> "$GITHUB_ENV"
+          echo "CATALOG_GENERATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+      - name: Collect all official API pages
+        env:
+          DATA_GO_KR_SERVICE_KEY: ${{ secrets.DATA_GO_KR_SERVICE_KEY }}
+        run: >-
+          python tools/catalog/fetch_national.py --transport api
+          --output .catalog-work/national.json
+          --header-output .catalog-work/national-header.json
+      - name: Refresh and validate official regional sources
+        run: >-
+          python tools/catalog/regional_catalog.py --refresh
+          --registry tools/catalog/regional-sources.json
+          --output .catalog-work/regional.json
+      - name: Normalize national and supplementary places
+        run: >-
+          python tools/catalog/normalize.py --format national
+          --input .catalog-work/national.json
+          --national-header .catalog-work/national-header.json
+          --config tools/catalog/national.mapping.json
+          --merge .catalog-work/regional.json
+          --merge tools/catalog/sources/legacy-regional-catalog.json
+          --version "$CATALOG_VERSION" --generated-at "$CATALOG_GENERATED_AT"
+          --output .catalog-work/catalog.json
+      - name: Resolve evidenced public facility coordinates
+        env:
+          VWORLD_API_KEY: ${{ secrets.VWORLD_API_KEY }}
+          VWORLD_DOMAIN: ${{ vars.VWORLD_DOMAIN }}
+          GEOCODE_ENABLED: ${{ inputs.geocode || vars.CATALOG_GEOCODE == 'true' }}
+        shell: bash
+        run: |
+          extra=()
+          previous='iOS/Resources/coordinate-supplements.json'
+          if [[ -f .catalog-history/coordinate-supplements.json ]]; then
+            previous='.catalog-history/coordinate-supplements.json'
+          fi
+          if [[ "$GEOCODE_ENABLED" == 'true' ]]; then
+            extra+=(--geocode --domain "$VWORLD_DOMAIN" --max-requests 1000)
+          fi
+          python tools/catalog/enrich_coordinates.py \
+            --input .catalog-work/catalog.json \
+            --parks tools/catalog/sources/regional-parks-all.json \
+            --parks-registry tools/catalog/regional-sources.json \
+            --previous "$previous" \
+            --output .catalog-work/coordinate-supplements.json \
+            --report .catalog-work/coordinate-report.json "${extra[@]}"
+      - name: Build verifiable static release and app endpoint configuration
+        env:
+          PAGES_BASE_URL: ${{ steps.pages.outputs.base_url }}
+        run: >-
+          python tools/catalog/publish_catalog.py
+          --input .catalog-work/catalog.json
+          --national-input .catalog-work/national.json
+          --national-header .catalog-work/national-header.json
+          --coordinate-supplements .catalog-work/coordinate-supplements.json
+          --base-url "$PAGES_BASE_URL" --output .catalog-site
+          --previous-site .catalog-published
+          --xcconfig-output .catalog-app-configuration/Config/CatalogEndpoint.xcconfig
+      - name: Prepare reusable public release evidence
+        run: |
+          mkdir -p .catalog-next-history
+          cp .catalog-work/coordinate-supplements.json .catalog-next-history/coordinate-supplements.json
+          cp .catalog-work/coordinate-report.json .catalog-app-configuration/coordinate-report.json
+      - name: Transfer evidence for saving after successful deployment
+        uses: actions/upload-artifact@v4
+        with:
+          name: catalog-deployment-history
+          path: .catalog-next-history/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Save app configuration ready to extract into the project root
+        uses: actions/upload-artifact@v4
+        with:
+          name: catalog-app-configuration
+          path: .catalog-app-configuration/
+          if-no-files-found: error
+      - name: Stage only public release files
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .catalog-site
+
+  deploy:
+    needs: collect
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Atomically publish validated release
+        id: deployment
+        uses: actions/deploy-pages@v4
+      - name: Receive successfully deployed evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: catalog-deployment-history
+          path: .catalog-history
+      - name: Avoid repeating successful address requests
+        uses: actions/cache/save@v4
+        with:
+          path: .catalog-history
+          key: public-catalog-${{ github.run_id }}-${{ github.run_attempt }}

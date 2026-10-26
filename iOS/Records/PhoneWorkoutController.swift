@@ -72,7 +72,10 @@ final class PhoneWorkoutController {
   func start(kind: WorkoutKind, placeID: String? = nil, placeName: String? = nil) throws {
     guard ready, draft == nil else { throw LocalDataError.storageUnavailable }
     let now = self.now()
-    let workout = PersonalWorkout(title: placeName.map { "\($0) \(kind.title)" } ?? kind.title,
+    // A valid catalog name can be longer than the record title limit. Keep the
+    // full place metadata while giving the generated title room for the kind.
+    let title = placeName.map { "\(String($0.prefix(159 - kind.title.count))) \(kind.title)" } ?? kind.title
+    let workout = PersonalWorkout(title: title,
       kind: kind, startedAt: now, endedAt: now, placeID: placeID, placeName: placeName)
     try commit(PhoneWorkoutDraft(workout: workout))
   }

@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 enum WatchWireError: LocalizedError {
   case invalidPayload, unsupportedVersion, tooLarge, expiredCommand, wrongSession, unavailable, busy
@@ -21,6 +22,7 @@ enum WatchWireError: LocalizedError {
 /// Included in both app targets. Live commands are never placed in a background queue.
 enum WatchWire {
   static let maximumBytes = 48 * 1024
+  static let maximumTransferBytes = 20 * 1024 * 1024
   static let commandLifetime: TimeInterval = 30
 
   static func encode(_ packet: WatchPacket) throws -> Data {
@@ -33,6 +35,26 @@ enum WatchWire {
   static func decode(_ data: Data) throws -> WatchPacket {
     guard data.count <= maximumBytes else { throw WatchWireError.tooLarge }
     let packet = try JSONDecoder().decode(WatchPacket.self, from: data)
+    try validate(packet)
+    return packet
+  }
+
+  // Large completed records and exact-revision ACKs use WCSession's file transport.
+  // Live commands and state messages retain the small, immediate-message bound.
+  static func encodeTransfer(_ packet: WatchPacket) throws -> Data {
+    guard packet.kind == .completed || packet.kind == .acknowledgement else { throw WatchWireError.invalidPayload }
+    try validate(packet)
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let data = try encoder.encode(packet)
+    guard data.count <= maximumTransferBytes else { throw WatchWireError.tooLarge }
+    return data
+  }
+
+  static func decodeTransfer(_ data: Data) throws -> WatchPacket {
+    guard data.count <= maximumTransferBytes else { throw WatchWireError.tooLarge }
+    let packet = try JSONDecoder().decode(WatchPacket.self, from: data)
+    guard packet.kind == .completed || packet.kind == .acknowledgement else { throw WatchWireError.invalidPayload }
     try validate(packet)
     return packet
   }
@@ -99,9 +121,77 @@ enum WatchWire {
     incoming.updatedAt > current.updatedAt
   }
 
+  static func shouldReplacePendingCompletion(_ incoming: PersonalWorkout, after current: PersonalWorkout) -> Bool {
+    guard incoming.id == current.id else { return false }
+    // A confirmed Health save is stronger than a failure snapshot even if the Watch clock changed.
+    if incoming.healthExportState == .saved && current.healthExportState != .saved { return true }
+    if incoming.healthExportState != .saved && current.healthExportState == .saved { return false }
+    return incoming.modifiedAt >= current.modifiedAt
+  }
+
   static func matchesAcknowledgement(_ packet: WatchPacket, workout: PersonalWorkout) -> Bool {
     packet.kind == .acknowledgement && packet.acknowledgedWorkoutID == workout.id
       && packet.workout == workout
+  }
+}
+
+enum WatchTransferFile {
+  static let metadataKey = "outdoorlog.transfer.v1"
+
+  static func identifier(for data: Data) -> String {
+    SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+  }
+
+  static func prepare(_ data: Data, identifier: String) throws -> URL {
+    guard isValid(identifier), data.count <= WatchWire.maximumTransferBytes else { throw WatchWireError.tooLarge }
+    guard self.identifier(for: data) == identifier else { throw WatchWireError.invalidPayload }
+    let url = try directory().appendingPathComponent(identifier + ".json")
+    try ProtectedFile.writeData(data, to: url)
+    return url
+  }
+
+  static func read(_ url: URL, identifier: String) throws -> Data {
+    // Read before the WCSession delegate returns: its received URL is temporary.
+    guard isValid(identifier) else { throw WatchWireError.invalidPayload }
+    let values = try url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+    guard values.isRegularFile == true, let size = values.fileSize,
+      size <= WatchWire.maximumTransferBytes else { throw WatchWireError.tooLarge }
+    let handle = try FileHandle(forReadingFrom: url)
+    defer { try? handle.close() }
+    var data = Data()
+    while data.count <= WatchWire.maximumTransferBytes {
+      let remaining = WatchWire.maximumTransferBytes + 1 - data.count
+      guard let chunk = try handle.read(upToCount: min(64 * 1024, remaining)), !chunk.isEmpty else { break }
+      data.append(chunk)
+    }
+    guard data.count <= WatchWire.maximumTransferBytes, self.identifier(for: data) == identifier else {
+      throw WatchWireError.invalidPayload
+    }
+    return data
+  }
+
+  static func remove(_ identifier: String) {
+    guard isValid(identifier), let directory = try? directory() else { return }
+    try? FileManager.default.removeItem(at: directory.appendingPathComponent(identifier + ".json"))
+  }
+
+  static func removeStaleFiles(keeping identifiers: Set<String>) {
+    guard let directory = try? directory(),
+      let files = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else { return }
+    for file in files where file.pathExtension == "json" {
+      let identifier = file.deletingPathExtension().lastPathComponent
+      if isValid(identifier), !identifiers.contains(identifier) { try? FileManager.default.removeItem(at: file) }
+    }
+  }
+
+  private static func directory() throws -> URL {
+    let directory = try ProtectedFile.directory().appendingPathComponent("WatchTransfers", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    return directory
+  }
+
+  private static func isValid(_ identifier: String) -> Bool {
+    identifier.utf8.count == 64 && identifier.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
   }
 }
 

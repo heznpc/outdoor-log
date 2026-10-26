@@ -474,7 +474,57 @@ final class CatalogMigrationTests: XCTestCase {
       "INSTT_NM": "시험기관", "INSTT_CODE": "0000000", "DATA_CRTR_YMD": "2026-10-01"]
   }
 
+  func testPublishedReleaseDoesNotUndoNewerDirectNationalRefresh() throws {
+    let existing = try CatalogMerge.national(national([
+      row("가공원", equipment: "새 철봉"), row("신규장소", equipment: "평행봉")
+    ], capturedAt: "2026-10-26"), into: nil, replace: true)
+    var published = try CatalogMerge.national(national([
+      row("가공원", equipment: "이전 기구"), row("철거장소", equipment: "평행봉")
+    ], capturedAt: "2026-10-22"), into: nil, replace: true)
+    published.version = 20261027000000
+    let merged = try CatalogMerge.manifest([published], version: published.version,
+      generatedAt: "2026-10-27", preservingCoordinatesFrom: existing)
+    XCTAssertEqual(Set(merged.places.map(\.name)), Set(["가공원", "신규장소"]))
+    XCTAssertEqual(merged.places.first { $0.name == "가공원" }?.equipment.first?.name, "새 철봉")
+    XCTAssertEqual(merged.sources?.first?.completeCapturedAt, "2026-10-26")
+  }
+
   private func national(_ rows: [[String: String]], capturedAt: String = "2026-10-22") throws -> CatalogPack {
     try NationalEquipment.normalize(JSONSerialization.data(withJSONObject: rows), capturedAt: capturedAt)
+  }
+
+  func testSameNationalCaptureAcceptsNewlyPublishedCoordinateEvidence() throws {
+    var sourceRow = row("가공원", equipment: "철봉")
+    sourceRow["LAT"] = ""; sourceRow["LOT"] = ""
+    let existing = try CatalogMerge.national(national([sourceRow]), into: nil, replace: true)
+    let place = try XCTUnwrap(existing.places.first)
+    let entry = CoordinateSupplementPack.Entry(placeID: place.id, latitude: 37, longitude: 127,
+      quality: .park, sourceURL: "https://example.org/park", method: "official-park-exact-match",
+      capturedAt: "2026-10-26", matchedAddress: place.address)
+    var (published, _) = try CatalogMerge.coordinates(.init(schemaVersion: 1, entries: [entry]), into: existing)
+    published.version = 100
+    let merged = try CatalogMerge.manifest([published], version: 100, generatedAt: "2026-10-27",
+      preservingCoordinatesFrom: existing)
+    XCTAssertEqual(merged.places.first?.coordinateEvidence, published.places.first?.coordinateEvidence)
+    XCTAssertNotNil(merged.places.first?.coordinate)
+  }
+
+  func testOlderPublishedCompleteCaptureStillContributesNewerPartialRows() throws {
+    let existing = try CatalogMerge.national(national([
+      row("가공원", equipment: "직접 갱신"), row("유지장소", equipment: "철봉")
+    ], capturedAt: "2026-10-26"), into: nil, replace: true)
+    let old = try CatalogMerge.national(national([
+      row("가공원", equipment: "이전 기구"), row("철거장소", equipment: "철봉")
+    ], capturedAt: "2026-10-22"), into: nil, replace: true)
+    var published = try CatalogMerge.national(national([
+      row("가공원", equipment: "새 부분 갱신"), row("추가장소", equipment: "평행봉")
+    ], capturedAt: "2026-10-27"), into: old, replace: false)
+    published.version = 100
+    let merged = try CatalogMerge.manifest([published], version: 100, generatedAt: "2026-10-27",
+      preservingCoordinatesFrom: existing)
+    XCTAssertEqual(Set(merged.places.map(\.name)), Set(["가공원", "유지장소", "추가장소"]))
+    XCTAssertEqual(merged.places.first { $0.name == "가공원" }?.equipment.first?.name, "새 부분 갱신")
+    XCTAssertEqual(merged.sources?.first?.completeCapturedAt, "2026-10-26")
+    XCTAssertEqual(merged.sources?.first?.partialCapturedAt, "2026-10-27")
   }
 }

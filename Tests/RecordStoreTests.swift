@@ -22,6 +22,197 @@ import XCTest
       manuallyEntered: true, pauses: workout.pauses, exportedLocalID: exportedLocalID)
   }
 
+  func testConflictingWatchHealthIdentityDoesNotMergeOrAcknowledge() throws {
+    let store = RecordStore(directory: try directory())
+    var original = workout(origin: .watch)
+    original.healthWorkoutID = UUID()
+    original.healthExportState = .saved
+    XCTAssertTrue(store.acceptWatch(original))
+    var linked = workout(origin: .healthLink)
+    linked.healthWorkoutID = UUID()
+    linked.healthExportState = .saved
+    linked.notes = "이 기록은 별도로 유지"
+    try store.save(linked)
+    let before = try store.exportData()
+    var conflict = original
+    conflict.healthWorkoutID = linked.healthWorkoutID
+    XCTAssertFalse(store.acceptWatch(conflict))
+    XCTAssertEqual(try store.exportData(), before)
+    XCTAssertNotNil(store.notice)
+  }
+
+  func testDeletedHealthLinkCannotBeResurrectedByFirstWatchDeliveryOrBackup() throws {
+    let folder = try directory()
+    let store = RecordStore(directory: folder)
+    var linked = workout(origin: .healthLink)
+    linked.healthWorkoutID = UUID(); linked.healthExportState = .saved
+    try store.save(linked)
+    try store.remove(linked.id)
+    let reopened = RecordStore(directory: folder)
+    var watch = linked
+    watch.id = UUID(); watch.origin = .watch
+    XCTAssertTrue(reopened.acceptWatch(watch))
+    XCTAssertTrue(reopened.records.isEmpty)
+    var olderDelivery = watch
+    olderDelivery.healthWorkoutID = nil; olderDelivery.healthExportState = .failed
+    XCTAssertTrue(reopened.acceptWatch(olderDelivery))
+    XCTAssertTrue(reopened.records.isEmpty)
+    try reopened.importData(JSONEncoder().encode(RecordArchive(records: [watch])))
+    XCTAssertTrue(reopened.records.isEmpty)
+    let restored = RecordStore(directory: try directory())
+    try restored.importData(reopened.exportData())
+    XCTAssertTrue(restored.acceptWatch(watch))
+    XCTAssertTrue(restored.records.isEmpty)
+    // An explicit new attachment is allowed to reverse this local deletion.
+    linked.id = UUID()
+    try restored.save(linked)
+    XCTAssertTrue(restored.acceptWatch(watch))
+    XCTAssertEqual(restored.records.count, 1)
+  }
+
+  func testLegacyArchiveWithoutHealthTombstonesStillLoads() throws {
+    let folder = try directory()
+    let data = try JSONSerialization.data(withJSONObject: ["version": 1, "records": [], "deletedIDs": []])
+    try data.write(to: folder.appendingPathComponent("personal-workouts.json"))
+    XCTAssertTrue(RecordStore(directory: folder).ready)
+  }
+
+  func testDeletedWatchDeliveryPersistsLateHealthIdentityBeforeAcknowledging() throws {
+    let folder = try directory()
+    let store = RecordStore(directory: folder)
+    var watch = workout(origin: .watch)
+    watch.healthExportState = .failed
+    XCTAssertTrue(store.acceptWatch(watch))
+    try store.remove(watch.id)
+    watch.healthWorkoutID = UUID(); watch.healthExportState = .saved
+    XCTAssertTrue(store.acceptWatch(watch))
+    var backupLink = watch
+    backupLink.id = UUID(); backupLink.origin = .healthLink
+    let reopened = RecordStore(directory: folder)
+    try reopened.importData(JSONEncoder().encode(RecordArchive(records: [backupLink])))
+    XCTAssertTrue(reopened.records.isEmpty)
+  }
+
+  func testDeletedHealthLinkDoesNotDeleteSurvivingWatchRecordOrBlockRetry() throws {
+    let folder = try directory()
+    let store = RecordStore(directory: folder)
+    var watch = workout(origin: .watch)
+    watch.healthExportState = .failed
+    XCTAssertTrue(store.acceptWatch(watch))
+    var link = workout(origin: .healthLink)
+    link.healthWorkoutID = UUID(); link.healthExportState = .saved
+    try store.save(link)
+    try store.remove(link.id)
+    var retry = watch
+    retry.healthWorkoutID = link.healthWorkoutID; retry.healthExportState = .saved
+    XCTAssertTrue(store.acceptWatch(retry))
+    let reopened = RecordStore(directory: folder)
+    XCTAssertEqual(reopened.records, [watch])
+    XCTAssertTrue(reopened.acceptWatch(retry))
+    XCTAssertEqual(reopened.records, [watch])
+  }
+
+  func testWatchDeliveryCannotClaimPhoneRecordByLocalOrHealthIdentity() throws {
+    let store = RecordStore(directory: try directory())
+    var phone = workout()
+    phone.healthWorkoutID = UUID()
+    phone.healthExportState = .saved
+    try store.save(phone)
+    var incoming = phone
+    incoming.origin = .watch
+    XCTAssertFalse(store.acceptWatch(incoming))
+    incoming.id = UUID()
+    XCTAssertFalse(store.acceptWatch(incoming))
+    XCTAssertEqual(store.records, [phone])
+  }
+
+  func testRecoveredWatchSummaryWarningSurvivesOldFailedDeliveryAndRelaunch() throws {
+    let directory = try directory()
+    let store = RecordStore(directory: directory)
+    var failed = workout(origin: .watch)
+    failed.healthExportState = .failed
+    XCTAssertTrue(store.acceptWatch(failed))
+    var recovered = failed
+    recovered.healthWorkoutID = UUID()
+    recovered.healthExportState = .saved
+    recovered.healthExportMessage = "요약 저장: 원래 센서 수치는 포함하지 않았습니다."
+    XCTAssertTrue(store.acceptWatch(recovered))
+    XCTAssertTrue(store.acceptWatch(failed))
+    var earlierSuccess = recovered
+    earlierSuccess.healthExportMessage = nil
+    XCTAssertTrue(store.acceptWatch(earlierSuccess))
+    let reopened = RecordStore(directory: directory)
+    XCTAssertEqual(reopened.records.first?.healthWorkoutID, recovered.healthWorkoutID)
+    XCTAssertEqual(reopened.records.first?.healthExportState, .saved)
+    XCTAssertEqual(reopened.records.first?.healthExportMessage, recovered.healthExportMessage)
+  }
+
+  func testFirstWatchAttachmentKeepsConflictingSetsAndExistingPlaceName() throws {
+    let store = RecordStore(directory: try directory())
+    let originalSet = ExerciseSet(repetitions: 5)
+    var linked = workout(origin: .healthLink)
+    linked.healthWorkoutID = UUID()
+    linked.healthExportState = .saved
+    linked.placeName = "직접 기록한 장소"
+    linked.exercises = [ExerciseEntry(name: "철봉", sets: [originalSet])]
+    try store.save(linked)
+    var incoming = linked
+    incoming.id = UUID()
+    incoming.origin = .watch
+    incoming.placeID = "watch-place"
+    incoming.placeName = "Watch의 장소"
+    incoming.exercises[0].sets[0].repetitions = 8
+    incoming.exercises[0].sets.append(ExerciseSet(repetitions: 10))
+    XCTAssertTrue(store.acceptWatch(incoming))
+    let merged = try XCTUnwrap(store.records.first)
+    XCTAssertEqual(merged.placeName, linked.placeName)
+    XCTAssertTrue(merged.notes.contains("Watch의 장소"))
+    XCTAssertEqual(merged.exercises[0].sets.map(\.repetitions), [5, 8, 10])
+    XCTAssertEqual(Set(merged.exercises[0].sets.map(\.id)).count, 3)
+    XCTAssertTrue(store.acceptWatch(incoming))
+    XCTAssertEqual(store.records, [merged])
+  }
+
+  func testUnreadableArchiveCanRestoreBackupWithoutLosingOriginalBytes() throws {
+    let directory = try directory()
+    let file = directory.appendingPathComponent("personal-workouts.json")
+    let unreadable = Data("damaged original archive".utf8)
+    try unreadable.write(to: file)
+    let store = RecordStore(directory: directory)
+    XCTAssertFalse(store.ready)
+    var restored = workout()
+    restored.healthExportState = .pending
+    let deleted = UUID()
+    let data = try JSONEncoder().encode(RecordArchive(records: [restored], deletedIDs: [deleted]))
+    try store.restoreUnreadableArchive(from: data)
+    XCTAssertTrue(store.ready)
+    XCTAssertEqual(store.records.first?.healthExportState, .failed)
+    let preserved = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+      .filter { $0.lastPathComponent.hasPrefix("personal-workouts-unreadable-") }
+    XCTAssertEqual(preserved.count, 1)
+    XCTAssertEqual(try Data(contentsOf: XCTUnwrap(preserved.first)), unreadable)
+    let reopened = RecordStore(directory: directory)
+    XCTAssertTrue(reopened.ready)
+    XCTAssertEqual(reopened.records, store.records)
+    XCTAssertTrue(reopened.hasDurableRecordOrDeletion(deleted))
+    XCTAssertThrowsError(try reopened.restoreUnreadableArchive(from: data))
+  }
+
+  func testInvalidRecoveryBackupLeavesUnreadableArchiveUntouched() throws {
+    let directory = try directory()
+    let file = directory.appendingPathComponent("personal-workouts.json")
+    let unreadable = Data("keep original".utf8)
+    try unreadable.write(to: file)
+    let store = RecordStore(directory: directory)
+    var invalid = workout()
+    invalid.notes = String(repeating: "x", count: 10_001)
+    let data = try JSONEncoder().encode(RecordArchive(records: [invalid]))
+    XCTAssertThrowsError(try store.restoreUnreadableArchive(from: data))
+    XCTAssertFalse(store.ready)
+    XCTAssertEqual(try Data(contentsOf: file), unreadable)
+    XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path), ["personal-workouts.json"])
+  }
+
   func testHealthAttachmentRecoversInterruptedExportWithoutReplacingLocalEdits() throws {
     let directory = try directory()
     let store = RecordStore(directory: directory)

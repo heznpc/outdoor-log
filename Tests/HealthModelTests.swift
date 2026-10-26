@@ -1,7 +1,21 @@
 import XCTest
+import HealthKit
 @testable import OutdoorLog
 
 final class HealthModelTests: XCTestCase {
+  @MainActor func testAutomaticPauseEventsPreserveFullIntervalsInTimeOrder() {
+    let start = Date(timeIntervalSince1970: 1_000)
+    func event(_ type: HKWorkoutEventType, _ seconds: Double) -> HKWorkoutEvent {
+      HKWorkoutEvent(type: type, dateInterval: DateInterval(start: start.addingTimeInterval(seconds), duration: 0), metadata: nil)
+    }
+    let events = [event(.motionResumed, 40), event(.pause, 25), event(.motionPaused, 20),
+      event(.pauseOrResumeRequest, 50), event(.pause, 70), event(.resume, 120)]
+    XCTAssertEqual(HealthLibrary.pauseIntervals(events: events, startedAt: start, endedAt: start.addingTimeInterval(100)), [
+      WorkoutPause(startedAt: start.addingTimeInterval(20), endedAt: start.addingTimeInterval(40)),
+      WorkoutPause(startedAt: start.addingTimeInterval(70), endedAt: start.addingTimeInterval(100))
+    ])
+  }
+
   func testMissingSamplesDoNotBecomeZero() {
     XCTAssertNil(HealthValues.readableTotal([nil, nil]))
     XCTAssertEqual(HealthValues.readableTotal([nil, 0, nil]), 0)

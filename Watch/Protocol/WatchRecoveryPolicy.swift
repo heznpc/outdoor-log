@@ -8,6 +8,71 @@ struct WatchJournal: Codable {
   var workout: PersonalWorkout
   var stage: WatchSaveStage = .recording
   var elapsedSeconds: Double = 0
+  // Kept separately until resume/finish, so a relaunch never invents a resume time.
+  var pauseStartedAt: Date?
+
+  func validate() throws {
+    try workout.validateInProgress()
+    guard workout.origin == .watch, elapsedSeconds.isFinite, elapsedSeconds >= 0,
+      elapsedSeconds <= workout.endedAt.timeIntervalSince(workout.startedAt) + 1,
+      pauseStartedAt.map({
+        $0.timeIntervalSinceReferenceDate.isFinite && $0 >= workout.startedAt && $0 <= workout.endedAt
+          && $0 >= (workout.pauses.last?.endedAt ?? workout.startedAt)
+      }) ?? true else { throw LocalDataError.invalidRecord }
+  }
+
+  mutating func captureTiming(at date: Date, elapsedSeconds: TimeInterval, ending: Bool = false) {
+    // The first stop fixes the workout boundary. Event delivery, retries and
+    // relaunches may improve its contents, but cannot extend that boundary.
+    if stage == .recording {
+      workout.endedAt = max(workout.startedAt, ending ? date : max(workout.endedAt, date))
+      if ending { stage = .ending }
+    }
+    self.elapsedSeconds = min(max(0, elapsedSeconds), workout.endedAt.timeIntervalSince(workout.startedAt))
+    workout.activeDurationSeconds = self.elapsedSeconds
+  }
+
+  mutating func capturePauses(_ events: [WatchPauseEvent], through date: Date, ending: Bool = false) {
+    let previous = workout.pauses.flatMap {
+      [WatchPauseEvent(date: $0.startedAt, paused: true), WatchPauseEvent(date: $0.endedAt, paused: false)]
+    } + (pauseStartedAt.map { [WatchPauseEvent(date: $0, paused: true)] } ?? [])
+    let timeline = WatchPauseTimeline(events: previous + events, startedAt: workout.startedAt, through: date)
+    workout.pauses = timeline.pauses
+    pauseStartedAt = timeline.pauseStartedAt
+    if ending, let start = pauseStartedAt {
+      workout.pauses.append(WorkoutPause(startedAt: start, endedAt: date))
+      pauseStartedAt = nil
+    }
+  }
+}
+
+struct WatchPauseEvent: Hashable {
+  var date: Date
+  var paused: Bool
+}
+
+/// Uses HealthKit event times, including events delivered after suspension or recovery.
+struct WatchPauseTimeline {
+  private(set) var pauses: [WorkoutPause] = []
+  private(set) var pauseStartedAt: Date?
+
+  init(events: [WatchPauseEvent], startedAt: Date, through end: Date) {
+    var seen = Set<WatchPauseEvent>()
+    let ordered = events.enumerated().filter {
+      $0.element.date.timeIntervalSinceReferenceDate.isFinite
+        && $0.element.date >= startedAt && $0.element.date <= end && seen.insert($0.element).inserted
+    }.sorted {
+      $0.element.date == $1.element.date ? $0.offset < $1.offset : $0.element.date < $1.element.date
+    }
+    for (_, event) in ordered {
+      if event.paused {
+        if pauseStartedAt == nil { pauseStartedAt = event.date }
+      } else if let start = pauseStartedAt {
+        pauses.append(WorkoutPause(startedAt: start, endedAt: event.date))
+        pauseStartedAt = nil
+      }
+    }
+  }
 }
 
 struct WatchHealthRetry: Codable, Equatable {
