@@ -19,6 +19,14 @@ enum NationalEquipment {
     "MNG_INST_NM": "관리기관명", "MNG_INST_TELNO": "관리기관전화번호",
     "DATA_CRTR_YMD": "데이터기준일자", "INSTT_CODE": "제공기관코드", "INSTT_NM": "제공기관명"
   ]
+  private static let apiAliases = [
+    "instlPlcNm": "INSTL_PLC_NM", "ctpvNm": "CTPV_NM", "sggNm": "SGG_NM",
+    "lctnRoadNmAddr": "LCTN_ROAD_NM_ADDR", "lctnLotnoAddr": "LCTN_LOTNO_ADDR",
+    "lat": "LAT", "lot": "LOT", "sprtgdNm": "SPRTGD_NM", "sprtgdQty": "SPRTGD_QTY",
+    "mngInstNm": "MNG_INST_NM", "mngInstTelno": "MNG_INST_TELNO", "dataCrtrYmd": "DATA_CRTR_YMD",
+    "instt_code": "INSTT_CODE", "instt_nm": "INSTT_NM",
+    "insttCode": "INSTT_CODE", "insttNm": "INSTT_NM"
+  ]
   // Match str.strip() in the offline Python importer without changing interior whitespace.
   private static let sourceWhitespace = CharacterSet(charactersIn:
     "\u{0009}\u{000A}\u{000B}\u{000C}\u{000D}\u{001C}\u{001D}\u{001E}\u{001F} "
@@ -38,6 +46,13 @@ enum NationalEquipment {
   private struct Label {
     var name: String
     var counts: [Int?]
+  }
+
+  static func normalizeOfficialRows(_ rows: [[String: Any]], capturedAt: String) throws -> CatalogPack {
+    // The API's documented schema also applies when every nullable value in a
+    // column is omitted from its JSON items.
+    let envelope: [String: Any] = ["sourceID": sourceID, "fields": schemaFields.sorted(), "records": rows]
+    return try normalize(JSONSerialization.data(withJSONObject: envelope), capturedAt: capturedAt)
   }
 
   static func normalize(_ data: Data, capturedAt: String) throws -> CatalogPack {
@@ -81,7 +96,7 @@ enum NationalEquipment {
 
     var groups: [Data: Group] = [:]
     for (index, rawRow) in rows.enumerated() {
-      let row = canonicalRow(rawRow)
+      let row = try canonicalRow(rawRow)
       // The portal declares every column in fields, but omits null-valued record keys.
       // Only the province, district and installation name must have a value in every row.
       let identity = try identityFields.map { try text(row[$0], field: $0) }
@@ -165,19 +180,24 @@ enum NationalEquipment {
         sourceRecordID: "설치장소 합성 ID \(digest) · 원본 \(group.rows.count)행",
         referenceDate: dates.count == 1 ? dates[0] : nil, capturedAt: capturedAt,
         license: "공공데이터포털 공개 표준데이터. 제공기관별 이용허락범위는 원자료에서 확인하세요.",
-        note: notes.joined(separator: " ")))
+        note: notes.joined(separator: " ")), coordinateConflict: coordinates.count > 1 ? true : nil)
   }
 
-  private static func canonicalRow(_ row: [String: Any]) -> [String: Any] {
-    var result = row
-    for (key, alias) in aliases where result[key] == nil {
-      if let value = row[alias] { result[key] = value }
+  private static func canonicalRow(_ row: [String: Any]) throws -> [String: Any] {
+    var result: [String: Any] = [:]
+    for (key, value) in row {
+      let canonical = canonicalField(key)
+      if let previous = result[canonical],
+        try text(previous, field: canonical) != text(value, field: canonical) {
+        throw CatalogError.invalid("같은 컬럼의 API·포털 별칭 값이 서로 다릅니다")
+      }
+      result[canonical] = value
     }
     return result
   }
 
   private static func canonicalField(_ field: String) -> String {
-    aliases.first(where: { $0.value == field })?.key ?? field
+    apiAliases[field] ?? aliases.first(where: { $0.value == field })?.key ?? field
   }
 
   private static func fieldNames(_ fields: Any) throws -> Set<String> {

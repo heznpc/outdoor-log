@@ -50,6 +50,18 @@ final class HealthModelTests: XCTestCase {
     XCTAssertEqual(HealthExportIdentity.syncVersion, 1)
   }
 
+  func testExportIdentityCanOnlyBeRecoveredFromOwnWellFormedMetadata() {
+    let id = UUID()
+    let identifier = HealthExportIdentity(localID: id).syncIdentifier
+    XCTAssertEqual(HealthExportIdentity.localID(syncIdentifier: identifier, isCurrentApp: true), id)
+    XCTAssertNil(HealthExportIdentity.localID(syncIdentifier: identifier, isCurrentApp: false))
+    XCTAssertNil(HealthExportIdentity.localID(syncIdentifier: nil, isCurrentApp: true))
+    XCTAssertNil(HealthExportIdentity.localID(syncIdentifier: "other-app.\(id.uuidString)", isCurrentApp: true))
+    XCTAssertNil(HealthExportIdentity.localID(syncIdentifier: identifier + "-extra", isCurrentApp: true))
+    XCTAssertNil(HealthExportIdentity.localID(syncIdentifier: identifier + " ", isCurrentApp: true))
+    XCTAssertNil(HealthExportIdentity.localID(syncIdentifier: "outdoor-log.personal-workout.invalid", isCurrentApp: true))
+  }
+
   func testReconciliationRejectsChangedIntervalAndTitle() {
     let start = Date(timeIntervalSince1970: 1_700_000_000)
     let workout = PersonalWorkout(title: "공원 철봉", kind: .strength,

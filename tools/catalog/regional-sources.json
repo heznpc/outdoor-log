@@ -1,0 +1,802 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-10-26",
+  "supplementalPack": "tools/catalog/sources/regional-supplemental.json",
+  "scope": "광주·울산·세종·제주 공식 기구 목록과 운동시설 명시 공원 보완. 전국 또는 개별 시도의 완전한 최신 목록을 보장하지 않는다.",
+  "preparation": "Downloaded public files through official read-only URLs; prepared supplementary JSON directly from source rows. No project collection, normalization, app, tests, build, or debugger code was executed.",
+  "coordinatePolicy": "좌표는 원본 위경도 또는 동일 부모 공원명·주소의 공식 대표좌표만 사용. 주소 지오코딩 및 추정/DMS 재해석 없음. 공원 자료를 개별 기구 확인으로 승격하지 않음.",
+  "coverage": [
+    {
+      "province": "광주광역시",
+      "placeCount": 252,
+      "mappedPlaceCount": 86,
+      "equipmentSurveyOrListPlaceCount": 232,
+      "parkReferencePlaceCount": 20,
+      "completeness": "partial public-source coverage; not a complete current inventory"
+    },
+    {
+      "province": "울산광역시",
+      "placeCount": 78,
+      "mappedPlaceCount": 78,
+      "equipmentSurveyOrListPlaceCount": 75,
+      "parkReferencePlaceCount": 3,
+      "completeness": "partial public-source coverage; not a complete current inventory"
+    },
+    {
+      "province": "세종특별자치시",
+      "placeCount": 81,
+      "mappedPlaceCount": 81,
+      "equipmentSurveyOrListPlaceCount": 5,
+      "parkReferencePlaceCount": 76,
+      "completeness": "partial public-source coverage; not a complete current inventory"
+    },
+    {
+      "province": "제주특별자치도",
+      "placeCount": 605,
+      "mappedPlaceCount": 605,
+      "equipmentSurveyOrListPlaceCount": 605,
+      "parkReferencePlaceCount": 0,
+      "completeness": "partial public-source coverage; not a complete current inventory"
+    }
+  ],
+  "sources": [
+    {
+      "id": "data-go-kr:15012890:regional-equipment-evidence",
+      "requiresPlaceSourceID": true,
+      "provider": "공공데이터포털 · 제공 지방자치단체",
+      "datasetTitle": "전국도시공원정보표준데이터 · 운동시설 명시 광주·울산·세종 추출",
+      "sourceURL": "https://www.data.go.kr/data/15012890/standard.do",
+      "downloadURL": "https://www.data.go.kr/download/standard.json",
+      "headerURL": "https://www.data.go.kr/download/columList.json?pk=15012890&ext=JSON",
+      "downloadParameters": {
+        "publicDataPk": "15012890",
+        "svcTableNm": "tn_pubr_public_cty_park_info_svc",
+        "totalCount": 18343,
+        "perPage": 50000,
+        "page": 1,
+        "colNmList": [
+          "MANAGE_NO",
+          "PARK_NM",
+          "PARK_SE",
+          "RDNMADR",
+          "LNMADR",
+          "LATITUDE",
+          "LONGITUDE",
+          "PARK_AR",
+          "MVM_FCLTY",
+          "AMSMT_FCLTY",
+          "CNVNNC_FCLTY",
+          "CLTR_FCLTY",
+          "ETC_FCLTY",
+          "APPN_NTFC_DATE",
+          "INSTITUTION_NM",
+          "PHONE_NUMBER",
+          "REFERENCE_DATE"
+        ]
+      },
+      "capturedAt": "2026-10-26",
+      "license": "공공데이터포털: 이용허락범위 제한 없음. 제공기관 출처 표시.",
+      "rawPath": "tools/catalog/sources/regional-parks-all.json",
+      "sha256": "8b7d97686cf00a757c66d820c0c834df0955df1345090fa876e3a1a806377447",
+      "rowCount": 18343,
+      "includedRowsPath": "tools/catalog/sources/regional-parks-equipment-evidence.json",
+      "includedRowCount": 236,
+      "uniqueIDColumn": "MANAGE_NO",
+      "columns": [
+        "MANAGE_NO",
+        "PARK_NM",
+        "PARK_SE",
+        "RDNMADR",
+        "LNMADR",
+        "LATITUDE",
+        "LONGITUDE",
+        "PARK_AR",
+        "MVM_FCLTY",
+        "AMSMT_FCLTY",
+        "CNVNNC_FCLTY",
+        "CLTR_FCLTY",
+        "ETC_FCLTY",
+        "APPN_NTFC_DATE",
+        "INSTITUTION_NM",
+        "PHONE_NUMBER",
+        "REFERENCE_DATE"
+      ],
+      "coordinateSystem": {
+        "columns": [
+          "LATITUDE",
+          "LONGITUDE"
+        ],
+        "units": "decimal degrees",
+        "datum": "not explicitly declared by file metadata",
+        "quality": "park representative coordinates"
+      },
+      "selection": {
+        "provinceCodePrefixes": [
+          "29",
+          "31",
+          "36"
+        ],
+        "equipmentEvidenceRegex": "운동기구|체력단련|체력단력|철봉|평행봉|윗몸|허리|근육|역기|공중걷기|걷기|트위스트|안마|스트레칭|거꾸리|파도|온몸|철봉|평행봉|윗몸|허리|근육|역기|공중\\s*걷기|하늘\\s*걷기|실외\\s*걷기|타원형\\s*걷기|에어워킹|런닝트레이너|트위스트|안마|스트레칭|거꾸[리로]|파도|온몸|활차|노젓기|다리뻗기|어깨유연|오금펴기|체스트|레그|로윙|스윙워커|매달리기|맛사지|마사지|양팔줄|물결타기|팔굽혀펴기",
+        "note": "구체 기구명이 명시된 원문 조각은 기구정보로 보존하고 수량은 확정하지 않는다. 체력단련시설/운동기구 같은 포괄 표현만 있는 행은 공원 참고로 유지한다. 모든 좌표 품질은 공원 대표좌표이다.",
+        "specificEquipmentRegex": "철봉|평행봉|윗몸|허리|근육|역기|공중\\s*걷기|하늘\\s*걷기|실외\\s*걷기|타원형\\s*걷기|에어워킹|런닝트레이너|트위스트|안마|스트레칭|거꾸[리로]|파도|온몸|활차|노젓기|다리뻗기|어깨유연|오금펴기|체스트|레그|로윙|스윙워커|매달리기|맛사지|마사지|양팔줄|물결타기|팔굽혀펴기"
+      },
+      "notes": [
+        "전체 원본에 중복 관리번호가 존재하므로 전체 자료를 관리번호 하나만으로 중복 제거하면 안 된다. 어댑터는 포함된 장소 ID의 중복을 별도로 거부한다."
+      ],
+      "placeCount": 236,
+      "missingCoordinateCount": 0,
+      "regions": [
+        "광주광역시 광산구",
+        "광주광역시 남구",
+        "광주광역시 서구",
+        "세종특별자치시",
+        "울산광역시 중구"
+      ],
+      "format": "JSON",
+      "capture": {
+        "capturedAt": "2026-10-26",
+        "sourceURL": "https://www.data.go.kr/data/15012890/standard.do",
+        "downloadURL": "https://www.data.go.kr/download/standard.json"
+      },
+      "proof": {
+        "sha256": "8b7d97686cf00a757c66d820c0c834df0955df1345090fa876e3a1a806377447",
+        "byteCount": 9848853,
+        "rowCount": 18343
+      },
+      "normalization": {
+        "adapter": "park-equipment-reference",
+        "regions": [
+          "29",
+          "31",
+          "36"
+        ]
+      },
+      "encoding": "UTF-8",
+      "inputFiles": [
+        "tools/catalog/sources/regional-parks-all.json"
+      ],
+      "datasetID": "15012890",
+      "rowReferenceConvention": "CSV row N means 1-based logical CSV record position, including the header as record 1.",
+      "headerPath": "tools/catalog/sources/regional-parks-header.json",
+      "referenceFiles": [
+        "tools/catalog/sources/regional-parks-header.json",
+        "tools/catalog/sources/regional-parks-equipment-evidence.json"
+      ]
+    },
+    {
+      "id": "data-go-kr:15111396",
+      "requiresPlaceSourceID": true,
+      "provider": "제주특별자치도 · 제주시",
+      "datasetTitle": "제주특별자치도_제주시 야외운동기구 현황_20221229",
+      "sourceURL": "https://www.data.go.kr/data/15111396/fileData.do",
+      "downloadURL": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000002677543&fileDetailSn=1",
+      "fileAttachmentID": "FILE_000000002677543",
+      "publicDataDetailID": "uddi:e86ac5d2-4b49-41d9-8e09-d0f20c49d6e5",
+      "capturedAt": "2026-10-26",
+      "license": "공공데이터포털: 이용허락범위 제한 없음. 제공기관 출처 표시.",
+      "rawPath": "tools/catalog/sources/regional-15111396.zip",
+      "sha256": "66193114d84ce023d43d465bc7fb84f3537a98fd156284266bc9f54f1ac946ca",
+      "rowCount": 3098,
+      "columns": [
+        "관리번호",
+        "시설명",
+        "주소",
+        "운동기구 종류",
+        "사용방법 안내",
+        "관리상태",
+        "노후화 여부",
+        "경도",
+        "위도",
+        "설치년도",
+        "관리부서"
+      ],
+      "encoding": "CP949",
+      "notes": [
+        "관리번호만으로 묶으면 명칭·주소가 다른 일부 시설이 합쳐져 세 필드를 함께 사용한다.",
+        "행은 기구 관측 단위이며 복합 기구명과 반복 기록이 있어 총수량과 종류별 수량은 추정하지 않는다.",
+        "원본 첫 기구의 공개 좌표를 시설 대표 위치로 사용. 기구군 좌표범위 대각선이 1,000m 초과면 좌표 미확인 처리.",
+        "명칭·주소 공백 정리 후 같은 장소인 노형제2근린공원과 이도1동 소공원은 서로 다른 관리번호와 기구 좌표를 보존한다. 별도 공원으로 확인한 것은 아니며 중복 관리기록 주석을 표시한다."
+      ],
+      "extractedCSVPath": "tools/catalog/sources/regional-15111396.csv",
+      "extractedCSVSha256": "a9b8948335f76bd6f534d983654dbb3bb5ae91c8f1fd9fc95b3f63279e2b4540",
+      "coordinateSystem": {
+        "csvColumns": [
+          "경도",
+          "위도"
+        ],
+        "csvUnits": "decimal degrees",
+        "csvDatum": "not explicitly stated in CSV; values used as published without coordinate transformation",
+        "accompanyingShapefileCRS": "EPSG:5186, Korea 2000 / Central Belt 2010 (GRS80)",
+        "projectionFile": "tools/catalog/sources/regional-15111396.prj"
+      },
+      "uniqueIdentityFields": [
+        "관리번호",
+        "시설명",
+        "주소"
+      ],
+      "placeCount": 365,
+      "missingCoordinateCount": 0,
+      "regions": [
+        "제주특별자치도 제주시"
+      ],
+      "format": "ZIP",
+      "capture": {
+        "capturedAt": "2026-10-26",
+        "sourceURL": "https://www.data.go.kr/data/15111396/fileData.do",
+        "downloadURL": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000002677543&fileDetailSn=1"
+      },
+      "proof": {
+        "sha256": "66193114d84ce023d43d465bc7fb84f3537a98fd156284266bc9f54f1ac946ca",
+        "byteCount": 229731,
+        "rowCount": 3098
+      },
+      "normalization": {
+        "adapter": "jeju-equipment-survey",
+        "regionCode": "50110",
+        "maxCoordinateSpreadMeters": 1000
+      },
+      "zipMember": "제주시 야외운동기구 현황.csv",
+      "referenceDate": "2022-12-29",
+      "zipFilenameEncoding": "CP949",
+      "inputFiles": [
+        "tools/catalog/sources/regional-15111396.zip"
+      ],
+      "referenceFiles": [
+        "tools/catalog/sources/regional-15111396.csv",
+        "tools/catalog/sources/regional-15111396.prj",
+        "tools/catalog/sources/regional-15111396-metadata.json"
+      ],
+      "datasetID": "15111396",
+      "rowReferenceConvention": "CSV row N means 1-based logical CSV record position, including the header as record 1.",
+      "metadataURL": "https://www.data.go.kr/tcs/dss/selectFileDataDownload.do",
+      "metadataPath": "tools/catalog/sources/regional-15111396-metadata.json",
+      "licenseCode": "COEX07"
+    },
+    {
+      "id": "data-go-kr:15111399",
+      "requiresPlaceSourceID": true,
+      "provider": "제주특별자치도 · 서귀포시",
+      "datasetTitle": "제주특별자치도_서귀포시 야외운동기구 현황_20221229",
+      "sourceURL": "https://www.data.go.kr/data/15111399/fileData.do",
+      "downloadURL": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000002677554&fileDetailSn=1",
+      "fileAttachmentID": "FILE_000000002677554",
+      "publicDataDetailID": "uddi:b11a7a45-1778-4c53-96c9-8f2eee25ee78",
+      "capturedAt": "2026-10-26",
+      "license": "공공데이터포털: 이용허락범위 제한 없음. 제공기관 출처 표시.",
+      "rawPath": "tools/catalog/sources/regional-15111399.zip",
+      "sha256": "274eee96ffde2f3f1ef0d471203e3b4235642d54057d8190def08f59f48d0a01",
+      "rowCount": 1491,
+      "columns": [
+        "관리번호",
+        "시설명",
+        "주소",
+        "운동기구 종류",
+        "사용방법 안내",
+        "관리상태",
+        "노후화 여부",
+        "경도",
+        "위도",
+        "설치년도",
+        "관리부서"
+      ],
+      "encoding": "CP949",
+      "notes": [
+        "관리번호만으로 묶으면 명칭·주소가 다른 일부 시설이 합쳐져 세 필드를 함께 사용한다.",
+        "행은 기구 관측 단위이며 복합 기구명과 반복 기록이 있어 총수량과 종류별 수량은 추정하지 않는다.",
+        "원본 첫 기구의 공개 좌표를 시설 대표 위치로 사용. 기구군 좌표범위 대각선이 1,000m 초과면 좌표 미확인 처리."
+      ],
+      "extractedCSVPath": "tools/catalog/sources/regional-15111399.csv",
+      "extractedCSVSha256": "54c3317b6b9230f5712b51200ddc44ab15919d05e699f8e5c1142237f99d1144",
+      "coordinateSystem": {
+        "csvColumns": [
+          "경도",
+          "위도"
+        ],
+        "csvUnits": "decimal degrees",
+        "csvDatum": "not explicitly stated in CSV; values used as published without coordinate transformation",
+        "accompanyingShapefileCRS": "EPSG:5186, Korea 2000 / Central Belt 2010 (GRS80)",
+        "projectionFile": "tools/catalog/sources/regional-15111399.prj"
+      },
+      "uniqueIdentityFields": [
+        "관리번호",
+        "시설명",
+        "주소"
+      ],
+      "placeCount": 240,
+      "missingCoordinateCount": 0,
+      "regions": [
+        "제주특별자치도 서귀포시"
+      ],
+      "format": "ZIP",
+      "capture": {
+        "capturedAt": "2026-10-26",
+        "sourceURL": "https://www.data.go.kr/data/15111399/fileData.do",
+        "downloadURL": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000002677554&fileDetailSn=1"
+      },
+      "proof": {
+        "sha256": "274eee96ffde2f3f1ef0d471203e3b4235642d54057d8190def08f59f48d0a01",
+        "byteCount": 118984,
+        "rowCount": 1491
+      },
+      "normalization": {
+        "adapter": "jeju-equipment-survey",
+        "regionCode": "50130",
+        "maxCoordinateSpreadMeters": 1000
+      },
+      "zipMember": "서귀포시 야외운동기구 현황.csv",
+      "referenceDate": "2022-12-29",
+      "zipFilenameEncoding": "CP949",
+      "inputFiles": [
+        "tools/catalog/sources/regional-15111399.zip"
+      ],
+      "referenceFiles": [
+        "tools/catalog/sources/regional-15111399.csv",
+        "tools/catalog/sources/regional-15111399.prj",
+        "tools/catalog/sources/regional-15111399-metadata.json"
+      ],
+      "datasetID": "15111399",
+      "rowReferenceConvention": "CSV row N means 1-based logical CSV record position, including the header as record 1.",
+      "metadataURL": "https://www.data.go.kr/tcs/dss/selectFileDataDownload.do",
+      "metadataPath": "tools/catalog/sources/regional-15111399-metadata.json",
+      "licenseCode": "COEX07"
+    },
+    {
+      "id": "data-go-kr:15010914",
+      "requiresPlaceSourceID": true,
+      "provider": "광주광역시 동구",
+      "datasetTitle": "전남광주통합특별시 동구_공공체육시설_20240829",
+      "sourceURL": "https://www.data.go.kr/data/15010914/fileData.do",
+      "downloadURL": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000003013448&fileDetailSn=1",
+      "fileAttachmentID": "FILE_000000003013448",
+      "publicDataDetailID": "uddi:0a507bcf-7f7e-4a3c-a3df-b53ff21d9076",
+      "capturedAt": "2026-10-26",
+      "license": "공공데이터포털: 이용허락범위 제한 없음. 제공기관 출처 표시.",
+      "rawPath": "tools/catalog/sources/regional-15010914.csv",
+      "sha256": "a282af6a0896735463b45d6fd11649f217b3898c081db5648a9c3fd465f54590",
+      "rowCount": 143,
+      "columns": [
+        "시설명",
+        "소재지도로명주소",
+        "면적",
+        "조성일자",
+        "이용시설현황",
+        "데이터기준일자"
+      ],
+      "encoding": "CP949",
+      "notes": [
+        "공공 체육시설 중 기구·체력단련시설이 명시된 행만 포함. 좌표 없는 주소를 지오코딩하지 않으며 실제 출입·이용 가능 여부는 미확인."
+      ],
+      "uniqueIdentityFields": [
+        "시설명",
+        "소재지도로명주소"
+      ],
+      "coordinateSystem": {
+        "columns": [],
+        "status": "source has no coordinates"
+      },
+      "selection": {
+        "equipmentColumn": "이용시설현황",
+        "equipmentEvidenceRegex": "운동기구|체력단련|체력단력|철봉|평행봉|윗몸|허리|근육|역기|공중걷기|걷기|트위스트|안마|스트레칭|거꾸리|파도|온몸"
+      },
+      "placeCount": 128,
+      "missingCoordinateCount": 128,
+      "regions": [
+        "광주광역시 동구"
+      ],
+      "format": "CSV",
+      "capture": {
+        "capturedAt": "2026-10-26",
+        "sourceURL": "https://www.data.go.kr/data/15010914/fileData.do",
+        "downloadURL": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000003013448&fileDetailSn=1"
+      },
+      "proof": {
+        "sha256": "a282af6a0896735463b45d6fd11649f217b3898c081db5648a9c3fd465f54590",
+        "byteCount": 12472,
+        "rowCount": 143
+      },
+      "normalization": {
+        "adapter": "gwangju-equipment-list",
+        "regionCode": "29110",
+        "nameColumn": "시설명",
+        "addressColumn": "소재지도로명주소",
+        "referenceDateColumn": "데이터기준일자",
+        "departmentColumn": null
+      },
+      "inputFiles": [
+        "tools/catalog/sources/regional-15010914.csv"
+      ],
+      "datasetID": "15010914",
+      "rowReferenceConvention": "CSV row N means 1-based logical CSV record position, including the header as record 1.",
+      "metadataURL": "https://www.data.go.kr/tcs/dss/selectFileDataDownload.do",
+      "metadataPath": "tools/catalog/sources/regional-15010914-metadata.json",
+      "licenseCode": "COEX07",
+      "referenceFiles": [
+        "tools/catalog/sources/regional-15010914-metadata.json"
+      ]
+    },
+    {
+      "id": "data-go-kr:3033262",
+      "requiresPlaceSourceID": true,
+      "provider": "광주광역시 서구",
+      "datasetTitle": "전남광주통합특별시_서구_체육시설_20251212",
+      "sourceURL": "https://www.data.go.kr/data/3033262/fileData.do",
+      "downloadURL": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000003563667&fileDetailSn=1",
+      "fileAttachmentID": "FILE_000000003563667",
+      "publicDataDetailID": "uddi:2d0e7f36-744f-4b12-8272-a8564ce7d8c9",
+      "capturedAt": "2026-10-26",
+      "license": "공공데이터포털: 이용허락범위 제한 없음. 제공기관 출처 표시.",
+      "rawPath": "tools/catalog/sources/regional-3033262.csv",
+      "sha256": "a1e61df90e3a7800a8e92c30cc7a550321b45861d0a27f5728820f8815434451",
+      "rowCount": 84,
+      "columns": [
+        "명칭",
+        "조성연도",
+        "체력단련시설",
+        "위치",
+        "담당부서",
+        "연락처",
+        "관리기관명",
+        "데이터기준일"
+      ],
+      "encoding": "CP949",
+      "notes": [
+        "공공 체육시설 중 기구·체력단련시설이 명시된 행만 포함. 좌표 없는 주소를 지오코딩하지 않으며 실제 출입·이용 가능 여부는 미확인."
+      ],
+      "uniqueIdentityFields": [
+        "명칭",
+        "위치"
+      ],
+      "coordinateSystem": {
+        "columns": [],
+        "status": "source has no coordinates"
+      },
+      "selection": {
+        "equipmentColumn": "체력단련시설",
+        "equipmentEvidenceRegex": "운동기구|체력단련|체력단력|철봉|평행봉|윗몸|허리|근육|역기|공중걷기|걷기|트위스트|안마|스트레칭|거꾸리|파도|온몸"
+      },
+      "placeCount": 38,
+      "missingCoordinateCount": 38,
+      "regions": [
+        "광주광역시 서구"
+      ],
+      "format": "CSV",
+      "capture": {
+        "capturedAt": "2026-10-26",
+        "sourceURL": "https://www.data.go.kr/data/3033262/fileData.do",
+        "downloadURL": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000003563667&fileDetailSn=1"
+      },
+      "proof": {
+        "sha256": "a1e61df90e3a7800a8e92c30cc7a550321b45861d0a27f5728820f8815434451",
+        "byteCount": 12331,
+        "rowCount": 84
+      },
+      "normalization": {
+        "adapter": "gwangju-equipment-list",
+        "regionCode": "29140",
+        "nameColumn": "명칭",
+        "addressColumn": "위치",
+        "referenceDateColumn": "데이터기준일",
+        "departmentColumn": "담당부서"
+      },
+      "inputFiles": [
+        "tools/catalog/sources/regional-3033262.csv"
+      ],
+      "datasetID": "3033262",
+      "rowReferenceConvention": "CSV row N means 1-based logical CSV record position, including the header as record 1.",
+      "metadataURL": "https://www.data.go.kr/tcs/dss/selectFileDataDownload.do",
+      "metadataPath": "tools/catalog/sources/regional-3033262-metadata.json",
+      "licenseCode": "COEX07",
+      "referenceFiles": [
+        "tools/catalog/sources/regional-3033262-metadata.json"
+      ]
+    },
+    {
+      "id": "data-go-kr:15085196",
+      "requiresPlaceSourceID": true,
+      "provider": "울산시설공단",
+      "datasetTitle": "울산시설공단_야외운동기구정보_20260429",
+      "sourceURL": "https://www.data.go.kr/data/15085196/fileData.do",
+      "downloadURL": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000003634011&fileDetailSn=1",
+      "fileAttachmentID": "FILE_000000003634011",
+      "publicDataDetailID": "uddi:30c4851b-733c-4818-97f5-c0f2f1a7f467",
+      "capturedAt": "2026-10-26",
+      "license": "공공데이터포털: 이용허락범위 제한 없음. 제공기관 출처 표시.",
+      "rawPath": "tools/catalog/sources/regional-15085196.csv",
+      "sha256": "bee905125e2db504716271324afead2f76e1ba852823d7f5a8cf9d72fc90cc7e",
+      "rowCount": 7,
+      "columns": [
+        "시설명",
+        "대상지주소",
+        "운동기구수(종)",
+        "운동기구명",
+        "위도",
+        "경도",
+        "관리기관",
+        "관리기관 연락처",
+        "기준일자"
+      ],
+      "encoding": "CP949",
+      "notes": [
+        "운동기구수(종)는 종류 수이므로 설치 대수로 변환하지 않는다."
+      ],
+      "uniqueIdentityFields": [
+        "시설명",
+        "대상지주소"
+      ],
+      "coordinateSystem": {
+        "columns": [
+          "위도",
+          "경도"
+        ],
+        "units": "decimal degrees",
+        "datum": "not explicitly declared",
+        "notes": "울산체육공원 2개 행 좌표는 같은 이름·주소의 표준 공원 좌표와 약 26km 충돌. 원값을 기구위치로 표시하지 않고 공식 부모 공원 대표좌표로 교체."
+      },
+      "placeCount": 7,
+      "missingCoordinateCount": 0,
+      "regions": [
+        "울산광역시 남구",
+        "울산광역시 중구"
+      ],
+      "format": "CSV",
+      "capture": {
+        "capturedAt": "2026-10-26",
+        "sourceURL": "https://www.data.go.kr/data/15085196/fileData.do",
+        "downloadURL": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000003634011&fileDetailSn=1"
+      },
+      "proof": {
+        "sha256": "bee905125e2db504716271324afead2f76e1ba852823d7f5a8cf9d72fc90cc7e",
+        "byteCount": 1500,
+        "rowCount": 7
+      },
+      "normalization": {
+        "adapter": "ulsan-equipment-list",
+        "parentParkSourceID": "data-go-kr:15012890:regional-equipment-evidence",
+        "parentParkName": "울산체육공원",
+        "coordinateConflictPlaceNames": [
+          "울산체육공원(옥외체육시설)",
+          "울산체육공원(소광장)"
+        ],
+        "addressRegionCodes": {
+          "중구": "31110",
+          "남구": "31140"
+        }
+      },
+      "inputFiles": [
+        "tools/catalog/sources/regional-15085196.csv"
+      ],
+      "datasetID": "15085196",
+      "rowReferenceConvention": "CSV row N means 1-based logical CSV record position, including the header as record 1.",
+      "metadataURL": "https://www.data.go.kr/tcs/dss/selectFileDataDownload.do",
+      "metadataPath": "tools/catalog/sources/regional-15085196-metadata.json",
+      "licenseCode": "COEX07",
+      "referenceFiles": [
+        "tools/catalog/sources/regional-15085196-metadata.json"
+      ]
+    },
+    {
+      "id": "data-go-kr:15055528",
+      "requiresPlaceSourceID": true,
+      "provider": "울산광역시",
+      "datasetTitle": "울산광역시_생활체육공원_20251111",
+      "sourceURL": "https://www.data.go.kr/data/15055528/fileData.do",
+      "downloadURL": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000003521502&fileDetailSn=1",
+      "fileAttachmentID": "FILE_000000003521502",
+      "publicDataDetailID": "uddi:766d1c3a-8f54-4be2-8b41-a6b997ba6e4d_201909241920",
+      "capturedAt": "2026-10-26",
+      "license": "공공데이터포털: 이용허락범위 제한 없음. 제공기관 출처 표시.",
+      "rawPath": "tools/catalog/sources/regional-15055528.csv",
+      "sha256": "e6ca9163154042c708aa7bd5f67ed97ac45af0a67ab4bb7607b3d0265fc008e3",
+      "rowCount": 9,
+      "columns": [
+        "공원명",
+        "위도",
+        "경도",
+        "소재지",
+        "연락처",
+        "홈페이지",
+        "주요시설",
+        "부지면적",
+        "연면적",
+        "수용인원"
+      ],
+      "encoding": "CP949",
+      "notes": [],
+      "uniqueIdentityFields": [
+        "공원명",
+        "소재지"
+      ],
+      "coordinateSystem": {
+        "columns": [
+          "위도",
+          "경도"
+        ],
+        "units": "decimal degrees",
+        "datum": "not explicitly declared",
+        "quality": "park representative coordinates"
+      },
+      "selection": {
+        "equipmentColumn": "주요시설",
+        "equipmentEvidenceRegex": "운동기구|체력단련|체력단력|철봉|평행봉|윗몸|허리|근육|역기|공중걷기|걷기|트위스트|안마|스트레칭|거꾸리|파도|온몸"
+      },
+      "placeCount": 2,
+      "missingCoordinateCount": 0,
+      "regions": [
+        "울산광역시 북구",
+        "울산광역시 중구"
+      ],
+      "format": "CSV",
+      "capture": {
+        "capturedAt": "2026-10-26",
+        "sourceURL": "https://www.data.go.kr/data/15055528/fileData.do",
+        "downloadURL": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000003521502&fileDetailSn=1"
+      },
+      "proof": {
+        "sha256": "e6ca9163154042c708aa7bd5f67ed97ac45af0a67ab4bb7607b3d0265fc008e3",
+        "byteCount": 1927,
+        "rowCount": 9
+      },
+      "normalization": {
+        "adapter": "ulsan-sports-park-reference",
+        "addressRegionCodes": {
+          "북구": "31200",
+          "중구": "31110"
+        }
+      },
+      "referenceDate": "2025-11-11",
+      "inputFiles": [
+        "tools/catalog/sources/regional-15055528.csv"
+      ],
+      "datasetID": "15055528",
+      "rowReferenceConvention": "CSV row N means 1-based logical CSV record position, including the header as record 1.",
+      "metadataURL": "https://www.data.go.kr/tcs/dss/selectFileDataDownload.do",
+      "metadataPath": "tools/catalog/sources/regional-15055528-metadata.json",
+      "licenseCode": "COEX07",
+      "referenceFiles": [
+        "tools/catalog/sources/regional-15055528-metadata.json"
+      ]
+    },
+    {
+      "id": "data-go-kr:15130138",
+      "requiresPlaceSourceID": true,
+      "provider": "울산시설공단",
+      "datasetTitle": "울산시설공단_울산대공원 야외운동기구 보유현황_20260401",
+      "sourceURL": "https://www.data.go.kr/data/15130138/fileData.do",
+      "downloadURL": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000003650340&fileDetailSn=1",
+      "fileAttachmentID": "FILE_000000003650340",
+      "publicDataDetailID": "uddi:2b47a293-0d61-4581-8a1e-c51e17430cfb",
+      "capturedAt": "2026-10-26",
+      "license": "공공데이터포털: 이용허락범위 제한 없음. 제공기관 출처 표시.",
+      "rawPath": "tools/catalog/sources/regional-15130138.csv",
+      "sha256": "0005a1ddbec77f878c88100aadb08aa0bcc5e00c0042e7dac27cea5d7f50ae97",
+      "rowCount": 31,
+      "columns": [
+        "시설명",
+        "도로명 주소",
+        "보유장소",
+        "운동기구",
+        "보유개수",
+        "데이터기준일"
+      ],
+      "encoding": "UTF-8-SIG",
+      "notes": [
+        "별도 보유현황이 15085196의 호랑이발테라스·산림놀이시설·숲속오솔길·다목적구장 설치구역과 시설명·주소까지 일치한다. 원문 (야외) 접미어만 제거해 연결하고 별도 장소로 중복 추가하지 않는다.",
+        "보유개수·기준일 원문을 근거에 보존한다. 기구명 자료와 기준일이 다를 수 있으므로 현재 수량으로 합산하지 않으며 기구명 차이를 임의 동의어 처리하지 않는다."
+      ],
+      "inclusionStatus": "linked-equipment-evidence",
+      "coordinateSystem": {
+        "columns": [],
+        "status": "source has no coordinates"
+      },
+      "placeCount": 0,
+      "missingCoordinateCount": 0,
+      "regions": [],
+      "format": "CSV",
+      "capture": {
+        "capturedAt": "2026-10-26",
+        "sourceURL": "https://www.data.go.kr/data/15130138/fileData.do",
+        "downloadURL": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000003650340&fileDetailSn=1"
+      },
+      "proof": {
+        "sha256": "0005a1ddbec77f878c88100aadb08aa0bcc5e00c0042e7dac27cea5d7f50ae97",
+        "byteCount": 3612,
+        "rowCount": 31
+      },
+      "normalization": {
+        "adapter": "ulsan-equipment-inventory-evidence",
+        "targetSourceID": "data-go-kr:15085196"
+      },
+      "inputFiles": [
+        "tools/catalog/sources/regional-15130138.csv"
+      ],
+      "datasetID": "15130138",
+      "rowReferenceConvention": "CSV row N means 1-based logical CSV record position, including the header as record 1.",
+      "metadataURL": "https://www.data.go.kr/tcs/dss/selectFileDataDownload.do",
+      "metadataPath": "tools/catalog/sources/regional-15130138-metadata.json",
+      "licenseCode": "COEX07",
+      "linkedPlaceCount": 4,
+      "includedRowCount": 31,
+      "referenceFiles": [
+        "tools/catalog/sources/regional-15130138-metadata.json"
+      ]
+    },
+    {
+      "id": "data-go-kr:15055919",
+      "requiresPlaceSourceID": true,
+      "provider": "광주광역시 광산구",
+      "datasetTitle": "전남광주통합특별시_광산구_체육시설 현황_20260423",
+      "sourceURL": "https://www.data.go.kr/data/15055919/fileData.do",
+      "downloadURL": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000003631195&fileDetailSn=1",
+      "fileAttachmentID": "FILE_000000003631195",
+      "publicDataDetailID": "uddi:aad48af9-966a-4cec-8c67-c3dd43c137f3",
+      "capturedAt": "2026-10-26",
+      "license": "공공데이터포털: 이용허락범위 제한 없음. 제공기관 출처 표시.",
+      "rawPath": "tools/catalog/sources/regional-15055919.csv",
+      "sha256": "527b1c94ffd9d5b1835b6330a2eb21ecdf07aaea4d656f37f0b73ee6039e1b01",
+      "rowCount": 324,
+      "columns": [
+        "연번",
+        "구분",
+        "시설명",
+        "주소",
+        "설치시설물",
+        "등록일자",
+        "데이터기준일자"
+      ],
+      "encoding": "CP949",
+      "notes": [
+        "324행 중 동네체육시설 257행이 있으나 설치시설물에 구체 기구/체력단련시설 표기가 없고 좌표가 없어 운동기구 장소로 승격하지 않음."
+      ],
+      "inclusionStatus": "raw-reference-only",
+      "coordinateSystem": {
+        "columns": [],
+        "status": "source has no coordinates"
+      },
+      "placeCount": 0,
+      "missingCoordinateCount": 0,
+      "regions": [],
+      "format": "CSV",
+      "capture": {
+        "capturedAt": "2026-10-26",
+        "sourceURL": "https://www.data.go.kr/data/15055919/fileData.do",
+        "downloadURL": "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000003631195&fileDetailSn=1"
+      },
+      "proof": {
+        "sha256": "527b1c94ffd9d5b1835b6330a2eb21ecdf07aaea4d656f37f0b73ee6039e1b01",
+        "byteCount": 36050,
+        "rowCount": 324
+      },
+      "normalization": {
+        "adapter": "raw-reference-only"
+      },
+      "inputFiles": [
+        "tools/catalog/sources/regional-15055919.csv"
+      ],
+      "datasetID": "15055919",
+      "rowReferenceConvention": "CSV row N means 1-based logical CSV record position, including the header as record 1.",
+      "metadataURL": "https://www.data.go.kr/tcs/dss/selectFileDataDownload.do",
+      "metadataPath": "tools/catalog/sources/regional-15055919-metadata.json",
+      "licenseCode": "COEX07",
+      "referenceFiles": [
+        "tools/catalog/sources/regional-15055919-metadata.json"
+      ]
+    }
+  ],
+  "researchGaps": [
+    {
+      "province": "세종특별자치시",
+      "status": "기구·체력단련시설 명시 공원 외에 독립 야외운동기구 전수 파일은 확보하지 못함. 공공데이터포털에서 야외운동기구·실외운동기구·동네체육·공공체육·체력 및 세종 체육/공원 검색을 확인했으며 체육시설업·체력측정/스포츠클럽 자료는 범위가 달라 제외함."
+    },
+    {
+      "province": "광주광역시",
+      "status": "동구·서구 직접 기구 목록은 원본에 좌표가 없어 위치 미확인으로 보존. 도시공원 원본과 이름·주소가 모두 정확히 일치하는 단일 행도 없어 추정 좌표를 추가하지 않음. 개별 기구 목록이 아닌 광산구 동네체육시설은 확정 기구 장소에서 제외."
+    }
+  ],
+  "generationCommand": "python3 tools/catalog/regional_catalog.py --registry tools/catalog/regional-sources.json --output tools/catalog/sources/regional-supplemental.json",
+  "updatePolicy": "--refresh는 공식 상세페이지의 최신 publicDataDetailPk를 읽고 첨부파일 ID/URL 변경을 lastRefreshChanges에 기록한다. 전체 원문을 임시 저장하고 열·행수·좌표계·연결을 검증해 pack 생성을 마친 뒤 원문·registry·pack을 교체한다. 라이선스 코드/열/ZIP 구성/좌표계 변경 및 불명확한 연결은 교체 전에 중단한다. 지오코딩은 하지 않는다. 파일마다 임시파일+atomic replace를 사용하며 여러 원문·registry·출력의 전체 교체가 하나의 원자적 transaction인 것은 아니다.",
+  "packVersion": 2026102601,
+  "generationCode": "tools/catalog/regional_catalog.py",
+  "adapterValidation": "Written and statically reviewed only; not executed during 2026-10-26 research per user instruction.",
+  "refreshCommand": "python3 tools/catalog/regional_catalog.py --refresh --registry tools/catalog/regional-sources.json --output tools/catalog/sources/regional-supplemental.json",
+  "catalogRole": "regional-supplement"
+}

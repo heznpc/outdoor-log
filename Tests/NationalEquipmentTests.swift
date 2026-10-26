@@ -235,6 +235,94 @@ final class NationalEquipmentTests: XCTestCase {
       try NationalCatalogDownload.pageFingerprint([first, second, second]))
   }
 
+  func testOfficialAPIAliasesPreservePortalIdentityAndRejectContradictions() throws {
+    let api: [String: Any] = [
+      "instlPlcNm": "산불대응센터", "ctpvNm": "충청남도", "sggNm": "홍성군",
+      "lctnRoadNmAddr": "충청남도 홍성군 홍성읍 내법길 82-270",
+      "lctnLotnoAddr": "충청남도 홍성군 홍성읍 내법리 234-6",
+      "lat": "36.61313848", "lot": "126.6950384", "sprtgdNm": "입식사이클+체어웨이 외3종",
+      "sprtgdQty": "4", "mngInstNm": "홍성군", "dataCrtrYmd": "2026-06-01", "instt_nm": "충청남도 홍성군"
+    ]
+    let place = try XCTUnwrap(normalize([api]).places.first)
+    XCTAssertEqual(place.id, try normalize([row()]).places.first?.id)
+    XCTAssertEqual(place.provenance.provider, "충청남도 홍성군")
+    var conflict = api
+    conflict["INSTL_PLC_NM"] = "다른 장소"
+    XCTAssertThrowsError(try normalize([conflict]))
+    var providerAliases = api
+    providerAliases["insttNm"] = "충청남도 홍성군"
+    providerAliases["insttCode"] = "0000000"
+    providerAliases["instt_code"] = "0000000"
+    XCTAssertEqual(try normalize([providerAliases]).places.first?.provenance.provider, "충청남도 홍성군")
+    providerAliases["instt_nm"] = "다른 제공기관"
+    XCTAssertThrowsError(try normalize([providerAliases]))
+    providerAliases["instt_nm"] = "충청남도 홍성군"
+    providerAliases["instt_code"] = "1111111"
+    XCTAssertThrowsError(try normalize([providerAliases]))
+  }
+
+  func testOfficialAPIRequestEncodesRawAndEncodedKeysExactlyOnce() throws {
+    let raw = try OfficialNationalCatalogDownload.pageURL(2, serviceKey: "test+/=")
+    let encoded = try OfficialNationalCatalogDownload.pageURL(2, serviceKey: "test%2B%2F%3D")
+    XCTAssertEqual(raw, encoded)
+    let parts = try XCTUnwrap(URLComponents(url: raw, resolvingAgainstBaseURL: false))
+    XCTAssertEqual(parts.host, "api.data.go.kr")
+    XCTAssertTrue(raw.absoluteString.contains("%2B"))
+    XCTAssertEqual(parts.queryItems?.first { $0.name == "serviceKey" }?.value, "test+/=")
+    XCTAssertEqual(parts.queryItems?.first { $0.name == "pageNo" }?.value, "2")
+    XCTAssertEqual(parts.queryItems?.first { $0.name == "type" }?.value, "json")
+  }
+
+  func testOfficialAPIOptionalColumnsCanBeAbsentFromEveryItem() throws {
+    let pack = try NationalEquipment.normalizeOfficialRows([
+      ["instlPlcNm": "공개 장소", "ctpvNm": "경기도", "sggNm": "시험시",
+       "futureOptionalField": ["metadata": "추가 정보"], "lat": NSNull()]
+    ], capturedAt: capturedAt)
+    XCTAssertNil(pack.places[0].coordinate)
+    XCTAssertFalse(pack.places[0].equipmentInformationKnown)
+    XCTAssertEqual(pack.sources?.first?.missingCoordinateCount, 1)
+  }
+
+  func testOfficialAPILastPageAcceptsOneNestedItemWithoutRelaxingPageCounts() throws {
+    let data = try apiResponse(rows: [], total: "1001", page: "2", items: ["item": row()])
+    let page = try OfficialNationalCatalogDownload.decodePage(data, requestedPage: 2, expectedTotal: 1001)
+    XCTAssertEqual(page.rows.count, 1)
+    XCTAssertEqual(page.rows[0]["INSTL_PLC_NM"] as? String, "산불대응센터")
+    let nestedArray = try apiResponse(rows: [], total: "1", items: ["item": [row()]])
+    XCTAssertEqual(try OfficialNationalCatalogDownload.decodePage(nestedArray, requestedPage: 1).rows.count, 1)
+    let missingRow = try apiResponse(rows: [], total: "1002", page: "2", items: ["item": row()])
+    XCTAssertThrowsError(try OfficialNationalCatalogDownload.decodePage(missingRow, requestedPage: 2))
+    let malformed = try apiResponse(rows: [], total: "1", items: ["item": "invalid"])
+    XCTAssertThrowsError(try OfficialNationalCatalogDownload.decodePage(malformed, requestedPage: 1))
+  }
+
+  func testOfficialAPIPageValidatesStatusCountAndPageWithoutReflectingSecrets() throws {
+    let data = try apiResponse(rows: [row()], total: "1", page: "1")
+    XCTAssertEqual(try OfficialNationalCatalogDownload.decodePage(data, requestedPage: 1).rows.count, 1)
+    XCTAssertThrowsError(try OfficialNationalCatalogDownload.decodePage(data, requestedPage: 2))
+    XCTAssertThrowsError(try OfficialNationalCatalogDownload.decodePage(data, requestedPage: 1, expectedTotal: 2))
+    XCTAssertThrowsError(try OfficialNationalCatalogDownload.decodePage(apiResponse(rows: [row()], total: "2"), requestedPage: 1))
+    XCTAssertThrowsError(try OfficialNationalCatalogDownload.decodePage(apiResponse(rows: [row()], total: true), requestedPage: 1))
+    XCTAssertThrowsError(try OfficialNationalCatalogDownload.decodePage(apiResponse(rows: [row()], total: "250001"), requestedPage: 1))
+    for data in [try apiResponse(rows: [], total: "0", code: "30"), Data("<error>secret-key</error>".utf8)] {
+      XCTAssertThrowsError(try OfficialNationalCatalogDownload.decodePage(data, requestedPage: 1)) { error in
+        XCTAssertFalse(error.localizedDescription.contains("secret-key"))
+      }
+    }
+  }
+
+  func testOfficialAPIAllowsMoreThanPortalExportCeiling() throws {
+    let data = try apiResponse(rows: Array(repeating: row(), count: 1000), total: "50001")
+    XCTAssertEqual(try OfficialNationalCatalogDownload.decodePage(data, requestedPage: 1).totalCount, 50001)
+  }
+
+  private func apiResponse(rows: [[String: Any]], total: Any, page: Any = "1", code: String = "00", items: Any? = nil) throws -> Data {
+    try JSONSerialization.data(withJSONObject: ["response": [
+      "header": ["resultCode": code, "resultMsg": "secret-key"],
+      "body": ["totalCount": total, "pageNo": page, "numOfRows": "1000", "items": items ?? rows]
+    ]])
+  }
+
   private func normalize(_ object: Any) throws -> CatalogPack {
     try NationalEquipment.normalize(JSONSerialization.data(withJSONObject: object), capturedAt: capturedAt)
   }

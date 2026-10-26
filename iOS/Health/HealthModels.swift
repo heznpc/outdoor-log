@@ -12,6 +12,8 @@ struct HealthWorkoutSummary: Identifiable, Equatable, Sendable {
   let activeEnergyKilocalories: Double?
   let manuallyEntered: Bool
   var pauses: [WorkoutPause] = []
+  // Populated only for this app's own Health samples with a valid export identity.
+  var exportedLocalID: UUID? = nil
 }
 
 struct HealthDailyMetrics: Identifiable, Equatable, Sendable {
@@ -90,8 +92,17 @@ enum HealthValues {
 
 struct HealthExportIdentity: Equatable {
   static let syncVersion = 1
+  private static let prefix = "outdoor-log.personal-workout."
   let localID: UUID
-  var syncIdentifier: String { "outdoor-log.personal-workout.\(localID.uuidString.lowercased())" }
+  var syncIdentifier: String { Self.prefix + localID.uuidString.lowercased() }
+
+  static func localID(syncIdentifier: String?, isCurrentApp: Bool) -> UUID? {
+    guard isCurrentApp, let syncIdentifier, syncIdentifier.hasPrefix(prefix),
+      let id = UUID(uuidString: String(syncIdentifier.dropFirst(prefix.count))),
+      HealthExportIdentity(localID: id).syncIdentifier == syncIdentifier.lowercased()
+    else { return nil }
+    return id
+  }
 
   // Millisecond precision avoids equality failures when HealthKit normalizes timestamps.
   static func matches(_ stored: HealthWorkoutSummary, workout: PersonalWorkout) -> Bool {

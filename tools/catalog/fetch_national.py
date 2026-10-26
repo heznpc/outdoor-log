@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""Download public dataset 15139207 through data.go.kr's JSON download endpoint.
+"""Collect national equipment dataset 15139207 using its official HTTPS API.
 
-No server or API key is required for this public file-download route. The portal
-may change this route; incomplete downloads fail without replacing the snapshot.
+Set DATA_GO_KR_SERVICE_KEY or use --service-key-file (decoded or percent-encoded
+key). Keys are never accepted on the command line or written into collection
+proofs. The public portal download is available only with --transport portal;
+API failures never silently switch sources. Incomplete downloads do not replace
+the previous snapshot. API coverage describes reported rows, not all facilities.
 """
 import argparse
 import hashlib
@@ -14,6 +17,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
+
+from national_api import (API_URL, CollectionError, MAXIMUM_PAGE_SIZE, collect_official_api,
+                          load_service_key, page_fingerprint, validate_api_header)
 
 
 HEADER_URL = "https://www.data.go.kr/download/columList.json?pk=15139207&ext=JSON"
@@ -45,10 +51,16 @@ def header_fields(header):
     if not isinstance(header, dict):
         raise ValueError("Unexpected public download header")
     count = header.get("totalCount")
-    # The portal caps a public download at 50,000. At the cap itself, this header
-    # cannot prove whether the source is complete or truncated.
-    if isinstance(count, bool) or not isinstance(count, int) or not 0 < count < DOWNLOAD_ROW_LIMIT:
-        raise ValueError("Unexpected public download row count")
+    transport = header.get("transport", "portal")
+    if transport == "official-api":
+        count = validate_api_header(header)
+    elif transport == "portal":
+        # The portal caps a public download at 50,000. At the cap itself, this
+        # header cannot prove whether the source is complete or truncated.
+        if isinstance(count, bool) or not isinstance(count, int) or not 0 < count < DOWNLOAD_ROW_LIMIT:
+            raise ValueError("Unexpected public download row count")
+    else:
+        raise ValueError("Unknown national collection transport")
     table = header.get("tableVO") or {}
     if not isinstance(table, dict):
         raise ValueError("Unexpected public download table metadata")
@@ -99,25 +111,8 @@ def publish_snapshot(snapshot_path, header_path, encoded, header):
             temporary.unlink(missing_ok=True)
 
 
-def page_fingerprint(rows):
-    # Preserve duplicate multiplicity while ignoring the server's row order.
-    row_hashes = sorted(hashlib.sha256(json.dumps(row, sort_keys=True, ensure_ascii=False,
-        separators=(",", ":"), allow_nan=False).encode("utf-8")).hexdigest() for row in rows)
-    return hashlib.sha256("\n".join(row_hashes).encode("ascii")).hexdigest()
-
-
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--header-output", type=Path, required=True)
-    parser.add_argument("--timeout", type=float, default=60)
-    args = parser.parse_args()
-    if not math.isfinite(args.timeout) or args.timeout <= 0:
-        parser.error("--timeout must be finite and positive")
-    if args.output.resolve() == args.header_output.resolve():
-        parser.error("Snapshot and header need distinct output paths")
-
-    header = get_json(HEADER_URL, args.timeout)
+def collect_portal(timeout, fetch=get_json):
+    header = fetch(HEADER_URL, timeout)
     count, columns, table = header_fields(header)
     page_size = 10_000
     rows = []
@@ -127,7 +122,7 @@ def main():
         query = [("publicDataPk", "15139207"), ("svcTableNm", table),
                  ("totalCount", count), ("perPage", page_size), ("page", page)]
         query.extend(("colNmList", column) for column in columns)
-        batch = get_json(DATA_URL + "?" + urlencode(query), args.timeout)
+        batch = fetch(DATA_URL + "?" + urlencode(query), timeout)
         expected = min(page_size, count - len(rows))
         if not isinstance(batch, list) or len(batch) != expected or not all(isinstance(row, dict) for row in batch):
             raise ValueError(f"Incomplete public download page {page}: expected {expected} rows")
@@ -140,14 +135,67 @@ def main():
             raise ValueError("Public download repeated a page")
         page_digests.add(digest)
         rows.extend(batch)
-    if header_fields(get_json(HEADER_URL, args.timeout)) != (count, columns, table):
+    if header_fields(fetch(HEADER_URL, timeout)) != (count, columns, table):
         raise ValueError("Public source changed during download; retry the snapshot")
+    header["transport"] = "portal"
+    return rows, header
+
+
+def prepare_snapshot(rows, header):
+    count, _, _ = header_fields(header)
+    if len(rows) != count:
+        raise ValueError("National row count does not match the collection header")
     encoded = encode_snapshot(rows)
     proof = {"schemaVersion": 1, "sourceID": SOURCE_ID,
              "capturedAt": datetime.now(timezone.utc).isoformat(), "rowCount": len(rows),
-             "byteCount": len(encoded), "sha256": hashlib.sha256(encoded).hexdigest()}
+             "byteCount": len(encoded), "sha256": hashlib.sha256(encoded).hexdigest(),
+             "transport": header["transport"]}
+    if header["transport"] == "official-api":
+        proof.update({"endpoint": API_URL, "pageCount": header["apiCollection"]["pageCount"],
+                      "pageSize": header["apiCollection"]["pageSize"],
+                      "duplicateRowCount": header["apiCollection"]["duplicateRowCount"],
+                      "crossPageDuplicateRowCount": header["apiCollection"]["crossPageDuplicateRowCount"],
+                      "coverage": "reported-api-rows",
+                      "snapshotIsolation": "not-provided-by-source"})
     header["collectionProof"] = proof
-    publish_snapshot(args.output, args.header_output, encoded, header)
+    return encoded, header
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--header-output", type=Path, required=True)
+    parser.add_argument("--transport", choices=("api", "portal"), default="api",
+                        help="Official API by default; portal is an explicit public-download fallback")
+    parser.add_argument("--service-key-file", type=Path,
+                        help="Private ASCII file containing the API key; otherwise DATA_GO_KR_SERVICE_KEY")
+    parser.add_argument("--page-size", type=int, default=MAXIMUM_PAGE_SIZE,
+                        help="Official API rows per page (1-1000; default: 1000)")
+    parser.add_argument("--timeout", type=float, default=60)
+    args = parser.parse_args()
+    if not math.isfinite(args.timeout) or args.timeout <= 0:
+        parser.error("--timeout must be finite and positive")
+    if not 1 <= args.page_size <= MAXIMUM_PAGE_SIZE:
+        parser.error("--page-size must be between 1 and 1000")
+    output_paths = {args.output.resolve(), args.header_output.resolve()}
+    if len(output_paths) != 2:
+        parser.error("Snapshot and header need distinct output paths")
+    if args.service_key_file is not None:
+        if args.transport == "portal":
+            parser.error("--service-key-file is only used by the official API transport")
+        if args.service_key_file.resolve() in output_paths:
+            parser.error("Output paths must not overwrite the service-key file")
+    try:
+        if args.transport == "api":
+            key = load_service_key(args.service_key_file)
+            rows, header = collect_official_api(key, args.timeout, args.page_size)
+        else:
+            rows, header = collect_portal(args.timeout)
+        encoded, header = prepare_snapshot(rows, header)
+        publish_snapshot(args.output, args.header_output, encoded, header)
+    except CollectionError as error:
+        parser.exit(1, f"Collection failed: {error}\n")
+    proof = header["collectionProof"]
     print(json.dumps(proof, ensure_ascii=False))
 
 

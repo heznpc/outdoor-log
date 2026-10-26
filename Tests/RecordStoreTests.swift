@@ -15,6 +15,379 @@ import XCTest
       startedAt: now.addingTimeInterval(-600), endedAt: now, origin: origin)
   }
 
+  private func healthSummary(_ workout: PersonalWorkout, healthID: UUID, exportedLocalID: UUID? = nil) -> HealthWorkoutSummary {
+    HealthWorkoutSummary(id: healthID, kind: workout.kind, title: workout.title,
+      startedAt: workout.startedAt, endedAt: workout.endedAt, sourceName: "OutdoorLog",
+      duration: workout.duration, distanceMeters: nil, activeEnergyKilocalories: nil,
+      manuallyEntered: true, pauses: workout.pauses, exportedLocalID: exportedLocalID)
+  }
+
+  func testHealthAttachmentRecoversInterruptedExportWithoutReplacingLocalEdits() throws {
+    let directory = try directory()
+    let store = RecordStore(directory: directory)
+    let exported = workout()
+    var edited = exported
+    edited.title = "내가 수정한 제목"
+    edited.notes = "건강 저장 응답 이후에 쓴 메모"
+    edited.placeID = "local-place"
+    edited.placeName = "개인 장소"
+    edited.healthExportState = .pending
+    try store.save(edited)
+    let summary = healthSummary(exported, healthID: UUID(), exportedLocalID: exported.id)
+
+    let attached = try store.recordForHealthAttachment(summary)
+
+    XCTAssertEqual(attached.id, exported.id)
+    XCTAssertEqual(attached.origin, .phone)
+    XCTAssertEqual(attached.healthWorkoutID, summary.id)
+    XCTAssertEqual(attached.healthExportState, .saved)
+    XCTAssertEqual(attached.title, edited.title)
+    XCTAssertEqual(attached.notes, edited.notes)
+    XCTAssertEqual(attached.placeID, edited.placeID)
+    XCTAssertEqual(store.records.count, 1)
+    XCTAssertEqual(RecordStore(directory: directory).records, [attached])
+  }
+
+  func testHealthExportCompletionAtomicallyCoalescesOldLinkAndPreservesConflicts() throws {
+    let directory = try directory()
+    let store = RecordStore(directory: directory)
+    var original = workout()
+    original.notes = "원래 기록의 메모"
+    original.placeID = "same-place-id"
+    original.placeName = "원래 장소 이름"
+    original.exercises = [ExerciseEntry(name: "철봉", sets: [ExerciseSet(repetitions: 10)])]
+    original.healthExportState = .failed
+    var linked = original
+    linked.id = UUID()
+    linked.origin = .healthLink
+    linked.healthWorkoutID = UUID()
+    linked.healthExportState = .saved
+    linked.title = "다른 기록 제목"
+    linked.endedAt = original.endedAt.addingTimeInterval(-60)
+    linked.notes = "연결 기록의 메모"
+    linked.placeName = "다른 장소 이름"
+    linked.exercises[0].sets[0].repetitions = 12
+    linked.exercises[0].sets.append(ExerciseSet(repetitions: 20))
+    try store.save(original)
+    try store.save(linked)
+    let healthID = try XCTUnwrap(linked.healthWorkoutID)
+
+    let merged = try XCTUnwrap(store.completeHealthExport(localID: original.id, healthWorkoutID: healthID))
+
+    XCTAssertEqual(store.records.count, 1)
+    XCTAssertEqual(merged.id, original.id)
+    XCTAssertEqual(merged.title, original.title)
+    XCTAssertEqual(merged.endedAt, original.endedAt)
+    XCTAssertEqual(merged.placeName, original.placeName)
+    XCTAssertTrue(merged.notes.contains(original.notes))
+    XCTAssertTrue(merged.notes.contains(linked.notes))
+    XCTAssertTrue(merged.notes.contains(linked.title))
+    XCTAssertTrue(merged.notes.contains(linked.placeName!))
+    XCTAssertTrue(merged.notes.contains("시간:"))
+    XCTAssertTrue(merged.notes.contains("별도 세트로 보존"))
+    XCTAssertEqual(merged.exercises[0].sets.map(\.repetitions), [10, 12, 20])
+    XCTAssertEqual(Set(merged.exercises[0].sets.map(\.id)).count, 3)
+    XCTAssertTrue(merged.watchSourceIDs?.contains(linked.id) == true)
+    XCTAssertNotNil(merged.healthExportMessage)
+    XCTAssertEqual(RecordStore(directory: directory).records, [merged])
+    // Retry, reattachment, and importing the old second record must all remain idempotent.
+    XCTAssertEqual(try store.completeHealthExport(localID: original.id, healthWorkoutID: healthID), merged)
+    XCTAssertEqual(try store.recordForHealthAttachment(
+      healthSummary(original, healthID: healthID, exportedLocalID: original.id)), merged)
+    try store.importData(JSONEncoder().encode(RecordArchive(records: [linked])))
+    XCTAssertEqual(store.records, [merged])
+  }
+
+  func testHealthAttachmentPrefersOriginalOverAlreadySavedLink() throws {
+    let store = RecordStore(directory: try directory())
+    let original = workout()
+    var linked = workout(origin: .healthLink)
+    linked.healthWorkoutID = UUID()
+    linked.healthExportState = .saved
+    linked.notes = "연결 기록 메모"
+    try store.save(linked)
+    try store.save(original)
+    let summary = healthSummary(original, healthID: try XCTUnwrap(linked.healthWorkoutID), exportedLocalID: original.id)
+
+    let attached = try store.recordForHealthAttachment(summary)
+
+    XCTAssertEqual(attached.id, original.id)
+    XCTAssertEqual(store.records.count, 1)
+    XCTAssertTrue(attached.notes.contains(linked.notes))
+    var staleEdit = linked
+    staleEdit.notes = "이전 연결 기록 화면에서 저장한 메모"
+    XCTAssertThrowsError(try store.saveEdited(staleEdit, original: linked)) { error in
+      guard case RecordHealthLinkError.recordMergedDuringEdit = error else {
+        return XCTFail("Expected an explicit stale editor conflict, received \(error)")
+      }
+    }
+    XCTAssertEqual(store.records, [attached])
+  }
+
+  func testStaleOriginalEditorCannotDeleteExerciseChangedByHealthMerge() throws {
+    let directory = try directory()
+    let store = RecordStore(directory: directory)
+    var original = workout()
+    original.exercises = [ExerciseEntry(name: "철봉", sets: [ExerciseSet(repetitions: 10)])]
+    var linked = original
+    linked.id = UUID()
+    linked.origin = .healthLink
+    linked.healthWorkoutID = UUID()
+    linked.healthExportState = .saved
+    linked.exercises[0].sets[0].repetitions = 12
+    linked.exercises[0].sets.append(ExerciseSet(repetitions: 20))
+    try store.save(original)
+    try store.save(linked)
+    var staleDraft = original
+    staleDraft.exercises = []
+    staleDraft.notes = "아직 저장하지 않은 수정"
+    let merged = try XCTUnwrap(store.completeHealthExport(localID: original.id,
+      healthWorkoutID: try XCTUnwrap(linked.healthWorkoutID)))
+    let before = try store.exportData()
+
+    XCTAssertThrowsError(try store.saveEdited(staleDraft, original: original)) { error in
+      guard case RecordHealthLinkError.exerciseChangedDuringEdit = error else {
+        return XCTFail("Expected a changed exercise deletion conflict, received \(error)")
+      }
+    }
+
+    XCTAssertEqual(merged.exercises[0].sets.map(\.repetitions), [10, 12, 20])
+    XCTAssertEqual(store.records, [merged])
+    XCTAssertEqual(try store.exportData(), before)
+    XCTAssertEqual(RecordStore(directory: directory).records, [merged])
+  }
+
+  func testEditorCanDeleteUnchangedExerciseWhileKeepingOtherConcurrentChanges() throws {
+    let store = RecordStore(directory: try directory())
+    var original = workout()
+    original.exercises = [ExerciseEntry(name: "삭제할 운동"), ExerciseEntry(name: "보존할 운동")]
+    try store.save(original)
+    var latest = original
+    latest.exercises[1].sets.append(ExerciseSet(repetitions: 15))
+    latest.exercises.append(ExerciseEntry(name: "나중에 추가된 운동"))
+    try store.save(latest)
+    var draft = original
+    let temporary = ExerciseEntry(name: "편집 중 추가했다 삭제한 운동")
+    draft.exercises.append(temporary)
+    draft.exercises.removeAll { $0.id == temporary.id || $0.id == original.exercises[0].id }
+
+    try store.saveEdited(draft, original: original)
+
+    XCTAssertEqual(store.records[0].exercises, Array(latest.exercises.dropFirst()))
+  }
+
+  func testStaleEditorCannotDeleteOrOverwriteConcurrentlyChangedSet() throws {
+    let directory = try directory()
+    let store = RecordStore(directory: directory)
+    var original = workout()
+    original.exercises = [ExerciseEntry(name: "철봉", sets: [ExerciseSet(repetitions: 10)])]
+    try store.save(original)
+    var latest = original
+    latest.exercises[0].sets[0].repetitions = 12
+    try store.save(latest)
+    let before = try store.exportData()
+    var deleted = original
+    deleted.exercises[0].sets = []
+    var changed = original
+    changed.exercises[0].sets[0].repetitions = 15
+    changed.notes = "충돌 시 함께 저장되면 안 되는 수정"
+
+    for draft in [deleted, changed] {
+      XCTAssertThrowsError(try store.saveEdited(draft, original: original)) { error in
+        guard case RecordHealthLinkError.exerciseSetChangedDuringEdit = error else {
+          return XCTFail("Expected a changed set conflict, received \(error)")
+        }
+      }
+      XCTAssertEqual(store.records, [latest])
+      XCTAssertEqual(try store.exportData(), before)
+    }
+    XCTAssertEqual(RecordStore(directory: directory).records, [latest])
+    var matching = original
+    matching.exercises[0].sets[0].repetitions = 12
+    try store.saveEdited(matching, original: original)
+    XCTAssertEqual(store.records[0].exercises, latest.exercises)
+  }
+
+  func testStaleEditorCannotResurrectConcurrentlyDeletedExercise() throws {
+    let directory = try directory()
+    let store = RecordStore(directory: directory)
+    var original = workout()
+    original.exercises = [ExerciseEntry(name: "철봉", sets: [ExerciseSet(repetitions: 10)])]
+    try store.save(original)
+    var latest = original
+    latest.exercises = []
+    try store.save(latest)
+    let before = try store.exportData()
+    var renamed = original
+    renamed.exercises[0].name = "평행봉"
+    var changedSet = original
+    changedSet.exercises[0].sets[0].repetitions = 15
+
+    for draft in [renamed, changedSet] {
+      XCTAssertThrowsError(try store.saveEdited(draft, original: original)) { error in
+        guard case RecordHealthLinkError.exerciseChangedDuringEdit = error else {
+          return XCTFail("Expected a deleted exercise conflict, received \(error)")
+        }
+      }
+      XCTAssertEqual(store.records, [latest])
+      XCTAssertEqual(try store.exportData(), before)
+    }
+    XCTAssertEqual(RecordStore(directory: directory).records, [latest])
+    var alsoDeleted = original
+    alsoDeleted.exercises = []
+    try store.saveEdited(alsoDeleted, original: original)
+    XCTAssertTrue(store.records[0].exercises.isEmpty)
+  }
+
+  func testExerciseNameConflictRejectsDifferentEditAndAllowsMatchingName() throws {
+    let store = RecordStore(directory: try directory())
+    var original = workout()
+    original.exercises = [ExerciseEntry(name: "철봉", sets: [ExerciseSet(repetitions: 10)])]
+    try store.save(original)
+    var latest = original
+    latest.exercises[0].name = "최신 이름"
+    latest.exercises[0].sets.append(ExerciseSet(repetitions: 20))
+    try store.save(latest)
+    let before = try store.exportData()
+    var draft = original
+    draft.exercises[0].name = "다른 이름"
+    draft.notes = "충돌 시 함께 저장되면 안 되는 수정"
+
+    XCTAssertThrowsError(try store.saveEdited(draft, original: original)) { error in
+      guard case RecordHealthLinkError.exerciseChangedDuringEdit = error else {
+        return XCTFail("Expected a changed exercise name conflict, received \(error)")
+      }
+    }
+    XCTAssertEqual(store.records, [latest])
+    XCTAssertEqual(try store.exportData(), before)
+    draft.exercises[0].name = latest.exercises[0].name
+    try store.saveEdited(draft, original: original)
+    XCTAssertEqual(store.records[0].exercises, latest.exercises)
+  }
+
+  func testConcurrentExerciseAdditionRequiresMatchingContentsForSameID() throws {
+    let store = RecordStore(directory: try directory())
+    let original = workout()
+    try store.save(original)
+    let added = ExerciseEntry(name: "철봉", sets: [ExerciseSet(repetitions: 10)])
+    var latest = original
+    latest.exercises.append(added)
+    try store.save(latest)
+    let before = try store.exportData()
+    var draft = original
+    draft.exercises.append(added)
+    draft.exercises[draft.exercises.count - 1].name = "다른 이름"
+
+    XCTAssertThrowsError(try store.saveEdited(draft, original: original)) { error in
+      guard case RecordHealthLinkError.exerciseChangedDuringEdit = error else {
+        return XCTFail("Expected a conflicting exercise addition, received \(error)")
+      }
+    }
+    XCTAssertEqual(store.records, [latest])
+    XCTAssertEqual(try store.exportData(), before)
+    draft.exercises[draft.exercises.count - 1] = added
+    try store.saveEdited(draft, original: original)
+    XCTAssertEqual(store.records[0].exercises, latest.exercises)
+    let independent = ExerciseEntry(name: "평행봉")
+    draft.exercises.append(independent)
+    try store.saveEdited(draft, original: original)
+    XCTAssertEqual(store.records[0].exercises, latest.exercises + [independent])
+  }
+
+  func testSetEditsKeepIndependentConcurrentChangesAndNewMergedSetIDs() throws {
+    let store = RecordStore(directory: try directory())
+    var original = workout()
+    original.exercises = [ExerciseEntry(name: "철봉", sets: [ExerciseSet(repetitions: 10),
+      ExerciseSet(repetitions: 20), ExerciseSet(repetitions: 30)])]
+    try store.save(original)
+    var latest = original
+    latest.exercises[0].sets[1].repetitions = 25
+    let mergedSet = ExerciseSet(repetitions: 40)
+    latest.exercises[0].sets.append(mergedSet)
+    try store.save(latest)
+    var draft = original
+    draft.exercises[0].sets[0].repetitions = 15
+    draft.exercises[0].sets.removeLast()
+
+    try store.saveEdited(draft, original: original)
+
+    XCTAssertEqual(store.records[0].exercises[0].sets.map(\.repetitions), [15, 25, 40])
+    XCTAssertEqual(store.records[0].exercises[0].sets.last, mergedSet)
+  }
+
+  func testStaleSetEditCannotResurrectAConcurrentlyDeletedSet() throws {
+    let store = RecordStore(directory: try directory())
+    var original = workout()
+    original.exercises = [ExerciseEntry(name: "철봉", sets: [ExerciseSet(repetitions: 10)])]
+    try store.save(original)
+    var latest = original
+    latest.exercises[0].sets = []
+    try store.save(latest)
+    var draft = original
+    draft.exercises[0].sets[0].repetitions = 15
+
+    XCTAssertThrowsError(try store.saveEdited(draft, original: original))
+    XCTAssertEqual(store.records, [latest])
+    draft.exercises[0].sets = []
+    try store.saveEdited(draft, original: original)
+    XCTAssertTrue(store.records[0].exercises[0].sets.isEmpty)
+  }
+
+  func testHealthMergeCapacityFailureLeavesBothRecordsAndArchiveUntouched() throws {
+    let directory = try directory()
+    let store = RecordStore(directory: directory)
+    var original = workout()
+    original.notes = String(repeating: "a", count: 6_000)
+    var linked = workout(origin: .healthLink)
+    linked.notes = String(repeating: "b", count: 6_000)
+    linked.healthWorkoutID = UUID()
+    linked.healthExportState = .saved
+    try store.save(original)
+    try store.save(linked)
+    let before = try store.exportData()
+
+    XCTAssertThrowsError(try store.completeHealthExport(localID: original.id,
+      healthWorkoutID: try XCTUnwrap(linked.healthWorkoutID))) { error in
+      guard case RecordHealthLinkError.cannotPreserveAnnotations = error else {
+        return XCTFail("Expected a non-destructive annotation limit error, received \(error)")
+      }
+    }
+    XCTAssertEqual(try store.exportData(), before)
+    XCTAssertEqual(RecordStore(directory: directory).records, store.records)
+  }
+
+  func testHealthReconciliationRejectsConflictingExistingIdentity() throws {
+    let store = RecordStore(directory: try directory())
+    var original = workout()
+    original.healthWorkoutID = UUID()
+    original.healthExportState = .saved
+    try store.save(original)
+    let before = try store.exportData()
+    XCTAssertThrowsError(try store.recordForHealthAttachment(
+      healthSummary(original, healthID: UUID(), exportedLocalID: original.id)))
+    XCTAssertEqual(try store.exportData(), before)
+  }
+
+  func testLateHealthCompletionCannotResurrectADeletedRecord() throws {
+    let store = RecordStore(directory: try directory())
+    let original = workout()
+    try store.save(original)
+    try store.remove(original.id)
+    let before = try store.exportData()
+    XCTAssertNil(try store.completeHealthExport(localID: original.id, healthWorkoutID: UUID()))
+    XCTAssertEqual(try store.exportData(), before)
+  }
+
+  func testHealthAttachmentWithoutExportIdentityDoesNotGuessFromMatchingContent() throws {
+    let store = RecordStore(directory: try directory())
+    let original = workout()
+    try store.save(original)
+    let draft = try store.recordForHealthAttachment(healthSummary(original, healthID: UUID()))
+    XCTAssertNotEqual(draft.id, original.id)
+    XCTAssertEqual(draft.origin, .healthLink)
+    XCTAssertEqual(store.records, [original])
+  }
+
   func testWatchDeliveryDoesNotReplaceEditedRecord() throws {
     let store = RecordStore(directory: try directory())
     let incoming = workout(origin: .watch)

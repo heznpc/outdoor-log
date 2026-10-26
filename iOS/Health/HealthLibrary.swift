@@ -312,7 +312,10 @@ final class HealthLibrary {
       activeEnergyKilocalories: HealthValues.nonnegative(workout.statistics(for: HKQuantityType(.activeEnergyBurned))?
         .sumQuantity()?.doubleValue(for: .kilocalorie()) ?? workout.totalEnergyBurned?.doubleValue(for: .kilocalorie())),
       manuallyEntered: (workout.metadata?[HKMetadataKeyWasUserEntered] as? Bool) == true,
-      pauses: pauses(in: workout))
+      pauses: pauses(in: workout),
+      exportedLocalID: HealthExportIdentity.localID(
+        syncIdentifier: workout.metadata?[HKMetadataKeySyncIdentifier] as? String,
+        isCurrentApp: workout.sourceRevision.source == HKSource.default()))
   }
 
   private static func pauses(in workout: HKWorkout) -> [WorkoutPause] {

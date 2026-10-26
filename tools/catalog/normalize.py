@@ -16,6 +16,8 @@ from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from catalog_coordinates import apply_supplements, validate_evidence
+
 
 MAXIMUM_BYTES = 60 * 1024 * 1024
 MAXIMUM_PLACES = 250_000
@@ -271,6 +273,7 @@ def from_national(rows, config):
             "regionName": f"{province} {municipality}", "locality": None,
             "latitude": latitude, "longitude": longitude,
             "coordinateQuality": "facility" if latitude is not None else "unknown",
+            "coordinateConflict": len(coordinates) > 1,
             "equipment": equipment, "equipmentCount": total,
             "equipmentInformationKnown": bool(equipment) or any(q is not None for q in quantities),
             "facilityTypes": [], "managingDepartment": " · ".join(departments) or None,
@@ -391,7 +394,7 @@ def validate_pack(pack):
         if type(place.get("equipmentInformationKnown")) is not bool:
             raise ValueError("equipmentInformationKnown must be a boolean")
         quality = place.get("coordinateQuality")
-        if quality not in ["equipment", "facility", "park", "unknown"]:
+        if quality not in ["equipment", "facility", "park", "address", "unknown"]:
             raise ValueError("Invalid coordinate quality")
         latitude, longitude = place.get("latitude"), place.get("longitude")
         if latitude is None and longitude is None:
@@ -400,7 +403,21 @@ def validate_pack(pack):
         elif (type(latitude) not in [int, float] or type(longitude) not in [int, float]
               or coordinate_pair(latitude, longitude) == (None, None) or quality == "unknown"):
             raise ValueError("Invalid coordinate pair")
+        if "coordinateConflict" in place and type(place["coordinateConflict"]) is not bool:
+            raise ValueError("Invalid coordinate conflict flag")
+        if place.get("coordinateConflict") and (latitude is not None or longitude is not None):
+            raise ValueError("Conflicting source coordinates cannot be resolved silently")
+        evidence = place.get("coordinateEvidence")
+        if evidence is not None:
+            validate_evidence(evidence)
+            if (latitude is None or longitude is None or evidence["matchedAddress"] != place["address"]
+                    or evidence.get("matchedName", place["name"]) != place["name"]):
+                raise ValueError("Coordinate evidence does not match its place")
+        elif quality == "address":
+            raise ValueError("Address-derived coordinates require evidence")
         provenance = place.get("provenance")
+        if place.get("sourceID") is not None:
+            require_text(place["sourceID"], "sourceID", 200, nonempty=True)
         if not isinstance(provenance, dict):
             raise ValueError("Place provenance must be an object")
         for field in ["provider", "datasetTitle", "sourceRecordID", "capturedAt", "license"]:
@@ -410,6 +427,8 @@ def validate_pack(pack):
             if provenance.get(field) is not None:
                 require_text(provenance[field], "provenance." + field)
         if place["id"].startswith(NATIONAL_ID_PREFIX) and provenance["sourceURL"] == NATIONAL_SOURCE_URL:
+            if place.get("sourceID") not in (None, NATIONAL_SOURCE_ID):
+                raise ValueError("National places cannot claim a different source ID")
             require_capture_date(provenance["capturedAt"])
             national_places.append(place)
 
@@ -422,6 +441,8 @@ def validate_pack(pack):
             raise ValueError("Source summaries must be objects")
         for field in ["id", "capturedAt"]:
             require_text(source.get(field), "source." + field, nonempty=True)
+        if "requiresPlaceSourceID" in source and type(source["requiresPlaceSourceID"]) is not bool:
+            raise ValueError("source.requiresPlaceSourceID must be a boolean")
         if source["id"] in source_ids:
             raise ValueError("Duplicate source summary IDs")
         source_ids.add(source["id"])
@@ -442,8 +463,18 @@ def validate_pack(pack):
                     or source["missingCoordinateCount"] != sum(p["latitude"] is None for p in national_places)
                     or set(regions) != {p["regionName"] for p in national_places}):
                 raise ValueError("National source summary does not match its places")
+        else:
+            attributed = [p for p in pack["places"] if p.get("sourceID") == source["id"]]
+            # New regional sources require attribution even when every place is
+            # absent. Only unmarked legacy summaries may lack place source IDs.
+            if (source.get("requiresPlaceSourceID") is True or attributed) and (source["placeCount"] != len(attributed)
+                    or source["missingCoordinateCount"] != sum(p["latitude"] is None for p in attributed)
+                    or set(regions) != {p["regionName"] for p in attributed}):
+                raise ValueError("Regional source summary does not match its places")
     if national_places and NATIONAL_SOURCE_ID not in source_ids:
         raise ValueError("National places require their source summary")
+    if any(p.get("sourceID") is not None and p["sourceID"] not in source_ids for p in pack["places"]):
+        raise ValueError("Attributed places require their source summary")
 
 
 def validate_config(config):
@@ -478,6 +509,8 @@ def main():
     parser.add_argument("--generated-at", required=True, help="ISO-8601 provenance timestamp")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--merge", type=Path, action="append", default=[], help="Other normalized packs to include")
+    parser.add_argument("--coordinate-supplements", type=Path,
+                        help="Attributed exact-place supplements; never replace source coordinates")
     args = parser.parse_args()
     if args.version <= 0:
         parser.error("--version must be positive")
@@ -527,6 +560,12 @@ def main():
         if len({source["id"] for source in summaries}) != len(summaries):
             raise ValueError("Duplicate source summary IDs")
         pack["sources"] = summaries
+    if args.coordinate_supplements:
+        with args.coordinate_supplements.open("rb") as handle:
+            supplement_bytes = handle.read(MAXIMUM_BYTES + 1)
+        if len(supplement_bytes) > MAXIMUM_BYTES:
+            raise ValueError("Coordinate supplements exceed resource limits")
+        pack, _ = apply_supplements(pack, json.loads(supplement_bytes))
     validate_pack(pack)
     encoded = (json.dumps(pack, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode("utf-8")
     if len(encoded) > MAXIMUM_BYTES:

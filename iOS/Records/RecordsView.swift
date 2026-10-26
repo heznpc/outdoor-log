@@ -167,14 +167,10 @@ private struct RecordDetailView: View {
       item.healthExportMessage = "저장 결과를 확인하는 중입니다."
       try store.save(item)
       let healthID = try await health.save(workout: item)
-      guard var current = record else { return }
-      current.healthWorkoutID = healthID
-      current.healthExportState = .saved
-      current.healthExportMessage = nil
-      try store.save(current)
+      try store.completeHealthExport(localID: item.id, healthWorkoutID: healthID)
     } catch {
       self.error = error.localizedDescription
-      if var current = record {
+      if var current = record, current.healthWorkoutID == nil {
         current.healthExportState = .failed
         current.healthExportMessage = error.localizedDescription
         do { try store.save(current) }

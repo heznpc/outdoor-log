@@ -23,6 +23,7 @@ private struct OutdoorLogRoot: View {
   @ObservedObject var watch: WatchLink
   @State private var editing: PersonalWorkout?
   @State private var recordingPlace: PlaceChoice?
+  @State private var healthAttachmentError: String?
   @Environment(\.scenePhase) private var scenePhase
 
   private var places: [PlaceChoice] {
@@ -37,14 +38,8 @@ private struct OutdoorLogRoot: View {
       .tabItem { Label("기구 찾기", systemImage: "map") }
 
       HealthView(library: health) { workout in
-        if let existing = records.records.first(where: { $0.healthWorkoutID == workout.id }) {
-          editing = existing
-        } else {
-          editing = PersonalWorkout(title: workout.title, kind: workout.kind,
-            startedAt: workout.startedAt, endedAt: workout.endedAt,
-            activeDurationSeconds: workout.duration, pauses: workout.pauses,
-            healthWorkoutID: workout.id, healthExportState: .saved, origin: .healthLink)
-        }
+        do { editing = try records.recordForHealthAttachment(workout) }
+        catch { healthAttachmentError = error.localizedDescription }
       }
       .tabItem { Label("건강", systemImage: "heart") }
 
@@ -56,6 +51,13 @@ private struct OutdoorLogRoot: View {
     }
     .sheet(item: $recordingPlace) { place in
       PlaceWorkoutSheet(place: place, records: records, recorder: recorder, watch: watch, places: places)
+    }
+    .alert("건강 기록 연결 실패", isPresented: Binding(
+      get: { healthAttachmentError != nil },
+      set: { if !$0 { healthAttachmentError = nil } })) {
+      Button("확인", role: .cancel) { healthAttachmentError = nil }
+    } message: {
+      Text(healthAttachmentError ?? "")
     }
     .task {
       watch.onCompleted = { record in records.acceptWatch(record) }

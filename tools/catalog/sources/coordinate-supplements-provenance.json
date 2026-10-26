@@ -1,0 +1,13 @@
+{
+  "sourceURL": "https://www.data.go.kr/data/15012890/standard.do",
+  "sourceFile": "regional-parks-all.json",
+  "sourceRowCount": 18343,
+  "sourceSHA256": "8b7d97686cf00a757c66d820c0c834df0955df1345090fa876e3a1a806377447",
+  "capturedAt": "2026-10-26",
+  "matching": "NFC and whitespace-only name + full road/parcel address; one official park ID and coordinate pair; conflicting original coordinates excluded",
+  "entries": 113,
+  "quality": "park",
+  "output": "iOS/Resources/coordinate-supplements.json",
+  "outputSHA256": "02b36fa9dc155b0ef2f574c5fc06ac45a1b81c8d3e3d6db287c769bd80273ad3",
+  "outputBytes": 52858
+}

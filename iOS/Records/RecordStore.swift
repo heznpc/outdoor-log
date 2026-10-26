@@ -66,6 +66,9 @@ final class RecordStore {
         || (draft.healthWorkoutID != nil && $0.healthWorkoutID == draft.healthWorkoutID)
     })
     if let latest {
+      // The absorbed record can have conflicting field/ID variants preserved in the
+      // survivor. Ask the stale editor to reopen that result before choosing values.
+      guard latest.id == draft.id else { throw RecordHealthLinkError.recordMergedDuringEdit }
       // Apply only fields the user changed; keep asynchronous metadata and new
       // Watch annotations that arrived while this editor was open.
       edited = latest
@@ -88,7 +91,7 @@ final class RecordStore {
           ? draft.notes : Self.combinedNotes(draft.notes, latest.notes)
       }
       if draft.exercises != original.exercises {
-        edited.exercises = Self.applyExerciseEdits(draft.exercises, original: original.exercises, latest: latest.exercises)
+        edited.exercises = try Self.applyExerciseEdits(draft.exercises, original: original.exercises, latest: latest.exercises)
       }
       edited.modifiedAt = draft.modifiedAt
     } else if deletedIDs.contains(draft.id) {
@@ -111,6 +114,52 @@ final class RecordStore {
 
   func hasDurableRecordOrDeletion(_ id: UUID) -> Bool {
     ready && (deletedIDs.contains(id) || records.contains { $0.id == id })
+  }
+
+  func recordForHealthAttachment(_ workout: HealthWorkoutSummary) throws -> PersonalWorkout {
+    guard ready else { throw LocalDataError.storageUnavailable }
+    // A successful Health write may outlive the callback that would have stored its UUID.
+    // The trusted export identity takes precedence over a separately created Health link.
+    if let localID = workout.exportedLocalID,
+      let original = records.first(where: { $0.id == localID }),
+      let reconciled = try completeHealthExport(localID: original.id, healthWorkoutID: workout.id) {
+      return reconciled
+    }
+    if let existing = records.first(where: { $0.healthWorkoutID == workout.id }) { return existing }
+    return PersonalWorkout(title: workout.title, kind: workout.kind,
+      startedAt: workout.startedAt, endedAt: workout.endedAt,
+      activeDurationSeconds: workout.duration, pauses: workout.pauses,
+      healthWorkoutID: workout.id, healthExportState: .saved, origin: .healthLink)
+  }
+
+  @discardableResult
+  func completeHealthExport(localID: UUID, healthWorkoutID: UUID) throws -> PersonalWorkout? {
+    guard ready else { throw LocalDataError.storageUnavailable }
+    // A late callback cannot recreate a record the user has deleted.
+    guard var original = records.first(where: { $0.id == localID }) else { return nil }
+    guard original.origin == .phone,
+      original.healthWorkoutID == nil || original.healthWorkoutID == healthWorkoutID
+    else { throw RecordHealthLinkError.conflictingIdentity }
+    let linked = records.first { $0.id != original.id && $0.healthWorkoutID == healthWorkoutID }
+    if let linked {
+      guard linked.origin == .healthLink else { throw RecordHealthLinkError.conflictingIdentity }
+      Self.mergeAnnotations(from: linked, into: &original, preserveConflicts: true)
+      // Retain absorbed IDs like the existing Watch/Health merge, so stale editors
+      // and backup imports cannot reintroduce the second local record.
+      original.watchSourceIDs = (original.watchSourceIDs ?? [])
+        .union(linked.watchSourceIDs ?? []).union([linked.id])
+      original.healthExportMessage = "같은 건강 운동의 개인 기록을 합쳤습니다. 서로 다른 값은 메모 또는 별도 운동 항목·세트에 함께 보존했습니다."
+    } else if original.healthExportState != .saved {
+      original.healthExportMessage = nil
+    }
+    original.healthWorkoutID = healthWorkoutID
+    original.healthExportState = .saved
+    // Fail before changing either record if preserving annotations exceeds a record limit.
+    do { try original.validate() }
+    catch { throw RecordHealthLinkError.cannotPreserveAnnotations }
+    let next = records.filter { $0.id != original.id && $0.id != linked?.id } + [original]
+    try persist(next, deleted: deletedIDs)
+    return original
   }
 
   // The acknowledgement is allowed only after a durable write, or a previously
@@ -245,35 +294,109 @@ final class RecordStore {
       if source.pauses != target.pauses && !source.pauses.isEmpty {
         conflicts.append("일시정지: " + source.pauses.map { "\($0.startedAt.ISO8601Format()) ~ \($0.endedAt.ISO8601Format())" }.joined(separator: ", "))
       }
-      if source.placeID != target.placeID, let place = source.placeName ?? source.placeID, target.placeID != nil {
-        conflicts.append("장소: \(place)")
+      let targetHasPlace = target.placeID != nil || target.placeName != nil
+      if targetHasPlace, (source.placeID != target.placeID || source.placeName != target.placeName),
+        (source.placeID != nil || source.placeName != nil) {
+        conflicts.append("장소: \(source.placeName ?? "이름 없음") (ID: \(source.placeID ?? "없음"))")
+      }
+      if !targetHasPlace { target.placeID = source.placeID; target.placeName = source.placeName }
+      for exercise in source.exercises {
+        guard let index = target.exercises.firstIndex(where: { $0.id == exercise.id }) else {
+          target.exercises.append(exercise)
+          continue
+        }
+        if target.exercises[index].name != exercise.name {
+          var alternative = exercise
+          alternative.id = UUID()
+          target.exercises.append(alternative)
+          conflicts.append("운동 항목 이름이 달라 별도 항목으로 보존: \(exercise.name)")
+          continue
+        }
+        for set in exercise.sets {
+          if let existing = target.exercises[index].sets.first(where: { $0.id == set.id }) {
+            if existing != set {
+              var alternative = set
+              alternative.id = UUID()
+              target.exercises[index].sets.append(alternative)
+              conflicts.append("\(exercise.name): 같은 세트의 다른 수치를 별도 세트로 보존")
+            }
+          } else { target.exercises[index].sets.append(set) }
+        }
       }
       if !conflicts.isEmpty { notes = combinedNotes(notes, "병합한 다른 개인 기록의 값:\n" + conflicts.joined(separator: "\n")) }
+    } else {
+      if target.placeID == nil { target.placeID = source.placeID; target.placeName = source.placeName }
+      let knownExercises = Set(target.exercises.map(\.id))
+      target.exercises.append(contentsOf: source.exercises.filter { !knownExercises.contains($0.id) })
     }
-    if target.placeID == nil { target.placeID = source.placeID; target.placeName = source.placeName }
     target.notes = combinedNotes(target.notes, notes)
-    let knownExercises = Set(target.exercises.map(\.id))
-    target.exercises.append(contentsOf: source.exercises.filter { !knownExercises.contains($0.id) })
   }
 
-  private static func applyExerciseEdits(_ draft: [ExerciseEntry], original: [ExerciseEntry], latest: [ExerciseEntry]) -> [ExerciseEntry] {
+  private static func applyExerciseEdits(_ draft: [ExerciseEntry], original: [ExerciseEntry], latest: [ExerciseEntry]) throws -> [ExerciseEntry] {
     let removedIDs = Set(original.map(\.id)).subtracting(draft.map(\.id))
+    // An older editor has not shown sets or alternatives merged into this item.
+    // Reject its deletion before saving any field, rather than discard those values.
+    for baseline in original where removedIDs.contains(baseline.id) {
+      if let current = latest.first(where: { $0.id == baseline.id }), current != baseline {
+        throw RecordHealthLinkError.exerciseChangedDuringEdit
+      }
+    }
     var result = latest.filter { !removedIDs.contains($0.id) }
     for entry in draft {
       guard let baseline = original.first(where: { $0.id == entry.id }) else {
-        if !result.contains(where: { $0.id == entry.id }) { result.append(entry) }
+        if let current = result.first(where: { $0.id == entry.id }) {
+          guard current == entry else { throw RecordHealthLinkError.exerciseChangedDuringEdit }
+        } else { result.append(entry) }
         continue
       }
       guard entry != baseline else { continue }
-      guard let index = result.firstIndex(where: { $0.id == entry.id }) else { result.append(entry); continue }
-      if entry.name != baseline.name { result[index].name = entry.name }
+      guard let index = result.firstIndex(where: { $0.id == entry.id }) else {
+        throw RecordHealthLinkError.exerciseChangedDuringEdit
+      }
+      if entry.name != baseline.name {
+        guard result[index].name == baseline.name || result[index].name == entry.name else {
+          throw RecordHealthLinkError.exerciseChangedDuringEdit
+        }
+        result[index].name = entry.name
+      }
       let removedSets = Set(baseline.sets.map(\.id)).subtracting(entry.sets.map(\.id))
+      for baselineSet in baseline.sets where removedSets.contains(baselineSet.id) {
+        if let current = result[index].sets.first(where: { $0.id == baselineSet.id }), current != baselineSet {
+          throw RecordHealthLinkError.exerciseSetChangedDuringEdit
+        }
+      }
       result[index].sets.removeAll { removedSets.contains($0.id) }
       for set in entry.sets where baseline.sets.first(where: { $0.id == set.id }) != set {
+        let baselineSet = baseline.sets.first(where: { $0.id == set.id })
+        let current = result[index].sets.first(where: { $0.id == set.id })
+        // A concurrent deletion also differs from the baseline. Matching edits
+        // are safe; different values must be reviewed before either is discarded.
+        guard current == baselineSet || current == set else {
+          throw RecordHealthLinkError.exerciseSetChangedDuringEdit
+        }
         if let setIndex = result[index].sets.firstIndex(where: { $0.id == set.id }) { result[index].sets[setIndex] = set }
         else { result[index].sets.append(set) }
       }
     }
     return result
+  }
+}
+
+enum RecordHealthLinkError: LocalizedError {
+  case conflictingIdentity, cannotPreserveAnnotations, recordMergedDuringEdit, exerciseChangedDuringEdit, exerciseSetChangedDuringEdit
+
+  var errorDescription: String? {
+    switch self {
+    case .conflictingIdentity:
+      return "서로 다른 개인 기록의 건강 연결이 충돌해 자동으로 합치지 않았습니다. 기존 기록은 모두 유지했습니다."
+    case .cannotPreserveAnnotations:
+      return "합칠 메모나 운동 항목이 보관 한도를 넘었습니다. 두 기록을 그대로 유지했으니 내보낸 뒤 내용을 정리해 주세요."
+    case .recordMergedDuringEdit:
+      return "편집 중 이 기록이 다른 개인 기록과 합쳐졌습니다. 입력 중인 내용을 복사해 둔 뒤 편집을 닫고, 합쳐진 기록을 다시 열어 수정해 주세요. 기존 저장 내용은 변경하지 않았습니다."
+    case .exerciseChangedDuringEdit:
+      return "추가·수정·삭제하려는 운동 항목이 편집 중 변경되었거나 삭제되었습니다. 입력 중인 내용을 복사해 둔 뒤 편집을 닫고, 최신 기록을 다시 열어 확인해 주세요. 기존 저장 내용은 변경하지 않았습니다."
+    case .exerciseSetChangedDuringEdit:
+      return "삭제하거나 수정하려는 세트가 편집 중 변경되었습니다. 입력 중인 내용을 복사해 둔 뒤 편집을 닫고, 최신 기록의 세트를 확인해 주세요. 기존 저장 내용은 변경하지 않았습니다."
+    }
   }
 }

@@ -64,5 +64,31 @@
     "note": "기존 김해·무안 장소의 ID와 상세를 고정 보존합니다. 전국 자료 갱신 시 원본 CSV를 다시 정규화하지 않고 이 스냅샷을 병합합니다.",
     "sha256": "40e07e895a9c860f6b6ec2a7dfc571fc2882a077b95f936467ece265d51894c7",
     "byteCount": 891769
+  },
+  "regionalSupplement": {
+    "resourceFile": "iOS/Resources/regional-equipment.json",
+    "capturedAt": "2026-10-26",
+    "places": 1016,
+    "missingCoordinates": 166,
+    "registry": "../regional-sources.json",
+    "sha256": "f34bf66ce418b7ec077a822522809b73cc58492ffcbee158969ceb6435b584e6",
+    "byteCount": 2815260
+  },
+  "coordinateSupplement": {
+    "resourceFile": "iOS/Resources/coordinate-supplements.json",
+    "capturedAt": "2026-10-26",
+    "entries": 113,
+    "evidence": "coordinate-supplements-provenance.json",
+    "sha256": "02b36fa9dc155b0ef2f574c5fc06ac45a1b81c8d3e3d6db287c769bd80273ad3",
+    "byteCount": 52858
+  },
+  "runtimeComposite": {
+    "places": 8416,
+    "provinceCount": 17,
+    "missingCoordinates": 3218,
+    "note": "Base catalog, regional supplement and exact-place coordinate evidence merged by the app; province presence is not complete local coverage.",
+    "legacyRegionProvinceAliases": {
+      "무안군": "전라남도"
+    }
   }
 }

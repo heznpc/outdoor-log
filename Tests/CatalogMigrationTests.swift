@@ -167,7 +167,7 @@ final class CatalogMigrationTests: XCTestCase {
     XCTAssertEqual(result.sources?.first?.rowCount, 2)
     XCTAssertEqual(result.sources?.first?.placeCount, 2)
     XCTAssertEqual(result.sources?.first?.missingCoordinateCount, 0)
-    XCTAssertEqual(result.sources?.first?.regions, ["경기도"])
+    XCTAssertEqual(result.sources?.first?.regions, ["경기도 시험시"])
     let summary = try XCTUnwrap(result.sources?.first)
     XCTAssertEqual(summary.completeCapturedAt.flatMap { CatalogMerge.captureDate($0) }, CatalogMerge.captureDate("2026-10-22"))
   }
@@ -211,6 +211,260 @@ final class CatalogMigrationTests: XCTestCase {
     XCTAssertEqual(parts.host, "www.data.go.kr")
     XCTAssertEqual(parts.queryItems?.filter { $0.name == "colNmList" }.compactMap(\.value), columns)
     XCTAssertEqual(parts.queryItems?.first { $0.name == "page" }?.value, "2")
+  }
+
+  func testNationalRefreshPreservesRegionalIDsAndMatchingCoordinateEvidence() throws {
+    var sourceRow = row("가공원", equipment: "철봉")
+    sourceRow["LAT"] = ""; sourceRow["LOT"] = ""
+    let nationalPack = try national([sourceRow])
+    var regional = try XCTUnwrap(nationalPack.places.first)
+    regional.id = "legacy-regional-park-1"
+    regional.provenance.sourceURL = "https://example.org/regional"
+    regional.name = "지역 보완 장소"
+    let regionalPack = CatalogPack(schemaVersion: 1, version: 1, generatedAt: "2026-10-22", places: [regional])
+    let (combined, conflicts) = try CatalogMerge.regional(regionalPack, into: nationalPack)
+    XCTAssertEqual(conflicts, 0)
+    let original = nationalPack.places[0]
+    let entry = CoordinateSupplementPack.Entry(placeID: original.id, latitude: 37, longitude: 127,
+      quality: .park, sourceURL: "https://example.org/park", method: "official-park-exact-match",
+      capturedAt: "2026-10-26", matchedAddress: original.address)
+    let (enriched, _) = try CatalogMerge.coordinates(.init(schemaVersion: 1, entries: [entry]), into: combined)
+    XCTAssertEqual(enriched.sources?.first?.missingCoordinateCount, 0)
+    let refreshed = try CatalogMerge.national(national([sourceRow], capturedAt: "2026-10-27"), into: enriched, replace: true)
+    XCTAssertTrue(refreshed.places.contains { $0.id == regional.id })
+    XCTAssertEqual(refreshed.places.first { $0.id == original.id }?.coordinateEvidence?.sourceURL, entry.sourceURL)
+    sourceRow["DATA_CRTR_YMD"] = "2026-10-28"
+    let changed = try CatalogMerge.national(national([sourceRow], capturedAt: "2026-10-29"), into: enriched, replace: true)
+    XCTAssertNil(changed.places.first { $0.id == original.id }?.coordinate)
+  }
+
+  @MainActor func testCorruptOptionalSupplementsNeverHideBaseCatalog() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let bundle = directory.appendingPathComponent("catalog.json")
+    let base = try national([row("기본 장소", equipment: "철봉")])
+    try JSONEncoder().encode(base).write(to: bundle)
+    try Data("invalid JSON".utf8).write(to: directory.appendingPathComponent("regional-equipment.json"))
+    try Data("invalid JSON".utf8).write(to: directory.appendingPathComponent("coordinate-supplements.json"))
+    let suite = "CatalogOptionalTests.\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let store = CatalogStore(defaults: defaults, directory: directory, bundledURL: bundle)
+    XCTAssertEqual(store.places.map(\.id), base.places.map(\.id))
+    XCTAssertNil(store.errorMessage)
+    XCTAssertTrue(store.supplementWarning?.contains("지역 보완") == true)
+    XCTAssertTrue(store.supplementWarning?.contains("좌표 보완") == true)
+  }
+
+  func testRegionalMergeRefreshesMetadataAndSummariesForRetainedPlaces() throws {
+    let old = try regionalPack(["기존 장소", "보존 장소"], capturedAt: "2026-10-22")
+    var incoming = try regionalPack(["기존 장소"], capturedAt: "2026-10-26")
+    incoming.version = 4
+    incoming.places[0].regionName = "새 지역"
+    incoming.sources?[0].regions = ["새 지역"]
+    incoming.sources?[0].rowCount = 20
+    let (merged, conflicts) = try CatalogMerge.regional(incoming, into: old)
+    XCTAssertEqual(conflicts, 0)
+    XCTAssertEqual(merged.version, 4)
+    XCTAssertEqual(merged.generatedAt, "2026-10-26")
+    XCTAssertEqual(merged.sources?.first?.capturedAt, "2026-10-26")
+    XCTAssertEqual(merged.sources?.first?.rowCount, 20)
+    XCTAssertEqual(merged.sources?.first?.placeCount, 2)
+    XCTAssertEqual(merged.sources?.first?.missingCoordinateCount, 2)
+    XCTAssertEqual(Set(merged.sources?.first?.regions ?? []), Set(["새 지역", old.places[1].regionName]))
+    let target = try XCTUnwrap(merged.places.first { $0.name == "기존 장소" })
+    let entry = CoordinateSupplementPack.Entry(placeID: target.id, latitude: 37, longitude: 127,
+      quality: .address, sourceURL: "https://example.org/geocoder", method: "address-geocoding",
+      capturedAt: "2026-10-26", matchedAddress: target.address)
+    let (enriched, rejected) = try CatalogMerge.coordinates(.init(schemaVersion: 1, entries: [entry]), into: merged)
+    XCTAssertEqual(rejected, 0)
+    XCTAssertEqual(enriched.sources?.first?.missingCoordinateCount, 1)
+    XCTAssertEqual(enriched.sources?.first?.rowCount, 20)
+
+    var legacy = old
+    for index in legacy.places.indices { legacy.places[index].sourceID = nil }
+    let (migrated, _) = try CatalogMerge.regional(old, into: legacy)
+    XCTAssertEqual(migrated.places.compactMap(\.sourceID), Array(repeating: "regional-source", count: 2))
+  }
+
+  func testRegionalRefreshRetainsMatchingCoordinateEvidenceAndPrioritizesNewSourceCoordinates() throws {
+    let original = try regionalPack(["보완 장소"], capturedAt: "2026-10-22")
+    let place = original.places[0]
+    let entry = CoordinateSupplementPack.Entry(placeID: place.id, latitude: 37, longitude: 127,
+      quality: .park, sourceURL: "https://example.org/park", method: "official-park-exact-match",
+      capturedAt: "2026-10-26", matchedAddress: place.address, sourceRecordID: "park-1", matchedName: place.name)
+    let (enriched, _) = try CatalogMerge.coordinates(.init(schemaVersion: 1, entries: [entry]), into: original)
+    var incoming = try regionalPack(["보완 장소"], capturedAt: "2026-10-27")
+    let (retained, conflicts) = try CatalogMerge.regional(incoming, into: enriched)
+    XCTAssertEqual(conflicts, 0)
+    XCTAssertEqual(retained.places[0].latitude, 37)
+    XCTAssertEqual(retained.places[0].coordinateQuality, .park)
+    XCTAssertEqual(retained.places[0].coordinateEvidence, enriched.places[0].coordinateEvidence)
+    XCTAssertEqual(retained.sources?.first?.missingCoordinateCount, 0)
+    var changedReference = incoming
+    changedReference.places[0].provenance.referenceDate = "2026-10-28"
+    let (stale, _) = try CatalogMerge.regional(changedReference, into: enriched)
+    XCTAssertNil(stale.places[0].coordinate)
+    XCTAssertNil(stale.places[0].coordinateEvidence)
+    var conflictingSource = incoming
+    conflictingSource.places[0].coordinateConflict = true
+    let (unfilled, _) = try CatalogMerge.regional(conflictingSource, into: enriched)
+    XCTAssertNil(unfilled.places[0].coordinate)
+    XCTAssertNil(unfilled.places[0].coordinateEvidence)
+
+    incoming.places[0].latitude = 37.1
+    incoming.places[0].longitude = 127.1
+    incoming.places[0].coordinateQuality = .facility
+    incoming.sources?[0].missingCoordinateCount = 0
+    let (sourceCoordinates, sourceConflicts) = try CatalogMerge.regional(incoming, into: enriched)
+    XCTAssertEqual(sourceConflicts, 0)
+    XCTAssertEqual(sourceCoordinates.places[0].latitude, 37.1)
+    XCTAssertNil(sourceCoordinates.places[0].coordinateEvidence)
+    incoming.places[0].latitude = 37.2
+    incoming.places[0].provenance.capturedAt = "2026-10-28"
+    let (keptSource, actualConflicts) = try CatalogMerge.regional(incoming, into: sourceCoordinates)
+    XCTAssertEqual(actualConflicts, 1)
+    XCTAssertEqual(keptSource.places[0].latitude, 37.1)
+  }
+
+  func testManifestRefreshRetainsEvidenceAndPrioritizesNewInventoryAndSourceCoordinates() throws {
+    let original = try regionalPack(["보완 장소", "원좌표 우선", "제외 장소"], capturedAt: "2026-10-22")
+    let entries = original.places.map { place in
+      CoordinateSupplementPack.Entry(placeID: place.id, latitude: 37, longitude: 127,
+        quality: .park, sourceURL: "https://example.org/park", method: "official-park-exact-match",
+        capturedAt: "2026-10-26", matchedAddress: place.address, sourceRecordID: "park-" + place.id,
+        matchedName: place.name)
+    }
+    let (enriched, _) = try CatalogMerge.coordinates(.init(schemaVersion: 1, entries: entries), into: original)
+    var incoming = try regionalPack(["보완 장소", "원좌표 우선", "새 장소"], capturedAt: "2026-10-27")
+    incoming.version = 2
+    let sourceIndex = try XCTUnwrap(incoming.places.firstIndex { $0.name == "원좌표 우선" })
+    incoming.places[sourceIndex].latitude = 37.1
+    incoming.places[sourceIndex].longitude = 127.1
+    incoming.places[sourceIndex].coordinateQuality = .facility
+    incoming.sources?[0].missingCoordinateCount = 2
+
+    let refreshed = try CatalogMerge.manifest([incoming], version: 2, generatedAt: "2026-10-27",
+      preservingCoordinatesFrom: enriched)
+
+    XCTAssertEqual(Set(refreshed.places.map(\.id)), Set(incoming.places.map(\.id)))
+    XCTAssertEqual(refreshed.version, 2)
+    let retained = try XCTUnwrap(refreshed.places.first { $0.name == "보완 장소" })
+    XCTAssertEqual(retained.latitude, 37)
+    XCTAssertEqual(retained.longitude, 127)
+    XCTAssertEqual(retained.coordinateQuality, .park)
+    XCTAssertEqual(retained.coordinateEvidence, enriched.places.first { $0.id == retained.id }?.coordinateEvidence)
+    XCTAssertEqual(retained.provenance.capturedAt, "2026-10-27")
+    let source = try XCTUnwrap(refreshed.places.first { $0.name == "원좌표 우선" })
+    XCTAssertEqual(source.latitude, 37.1)
+    XCTAssertEqual(source.longitude, 127.1)
+    XCTAssertEqual(source.coordinateQuality, .facility)
+    XCTAssertNil(source.coordinateEvidence)
+    XCTAssertNil(refreshed.places.first { $0.name == "새 장소" }?.coordinate)
+    XCTAssertEqual(refreshed.sources?.first?.placeCount, 3)
+    XCTAssertEqual(refreshed.sources?.first?.missingCoordinateCount, 1)
+    XCTAssertEqual(refreshed.sources?.first?.capturedAt, "2026-10-27")
+  }
+
+  func testManifestRefreshRejectsChangedIdentityStaleEvidenceAndSourceConflicts() throws {
+    let names = ["주소 변경", "기준일 변경", "오래된 근거", "이름 변경", "출처 변경", "좌표 충돌"]
+    let original = try regionalPack(names, capturedAt: "2026-10-22")
+    let entries = original.places.map { place in
+      CoordinateSupplementPack.Entry(placeID: place.id, latitude: 37, longitude: 127,
+        quality: .park, sourceURL: "https://example.org/park", method: "official-park-exact-match",
+        capturedAt: "2026-10-26", matchedAddress: place.address, matchedName: place.name)
+    }
+    var (enriched, _) = try CatalogMerge.coordinates(.init(schemaVersion: 1, entries: entries), into: original)
+    // A schema-1 cache may already contain evidence older than its source date.
+    let staleIndex = try XCTUnwrap(enriched.places.firstIndex { $0.name == "오래된 근거" })
+    enriched.places[staleIndex].coordinateEvidence?.capturedAt = "2026-09-30"
+    var incoming = try regionalPack(names, capturedAt: "2026-10-27")
+    for index in incoming.places.indices {
+      switch incoming.places[index].name {
+      case "주소 변경": incoming.places[index].address = "시험로 2"
+      case "기준일 변경": incoming.places[index].provenance.referenceDate = "2026-10-02"
+      case "이름 변경": incoming.places[index].name = "바뀐 이름"
+      case "출처 변경": incoming.places[index].provenance.sourceURL = "https://example.org/another-source"
+      case "좌표 충돌": incoming.places[index].coordinateConflict = true
+      default: break
+      }
+    }
+
+    let refreshed = try CatalogMerge.manifest([incoming], version: incoming.version, generatedAt: "2026-10-27",
+      preservingCoordinatesFrom: enriched)
+
+    XCTAssertTrue(refreshed.places.allSatisfy { $0.coordinate == nil && $0.coordinateEvidence == nil })
+    XCTAssertEqual(refreshed.sources?.first?.missingCoordinateCount, names.count)
+  }
+
+  @MainActor func testSupplementImportsPreserveCatalogAndReachSearchAndRecordChoices() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    var base = try national([row("전국 장소", equipment: "철봉")])
+    base.version = 5
+    try JSONEncoder().encode(base).write(to: directory.appendingPathComponent("current.json"))
+    let suite = "CatalogSupplementImport.\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let store = CatalogStore(defaults: defaults, directory: directory, bundledURL: nil)
+    let revision = store.revision
+    store.toggleFavorite(base.places[0].id)
+    let regional = try regionalPack(["지역 장소"], capturedAt: "2026-10-26")
+    var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(regional)) as? [String: Any])
+    object["catalogRole"] = "regional-supplement"
+    let importURL = directory.appendingPathComponent("regional.json")
+    let regionalData = try JSONSerialization.data(withJSONObject: object)
+    try regionalData.write(to: importURL)
+    await store.importJSON(from: importURL)
+    XCTAssertNil(store.errorMessage)
+    XCTAssertEqual(store.version, 5)
+    XCTAssertGreaterThan(store.revision, revision)
+    let expectedIDs = Set(base.places.map(\.id) + regional.places.map(\.id))
+    XCTAssertEqual(Set(store.places.map(\.id)), expectedIDs)
+    XCTAssertEqual(Set(store.recordPlaceChoices.map(\.id)), expectedIDs)
+    XCTAssertTrue(store.isFavorite(base.places[0].id))
+    let target = regional.places[0]
+    let entry = CoordinateSupplementPack.Entry(placeID: target.id, latitude: 37, longitude: 127,
+      quality: .park, sourceURL: "https://example.org/park", method: "official-park-exact-match",
+      capturedAt: "2026-10-26", matchedAddress: target.address)
+    let coordinateData = try JSONEncoder().encode(CoordinateSupplementPack(schemaVersion: 1, entries: [entry]))
+    try coordinateData.write(to: importURL)
+    await store.importJSON(from: importURL)
+    XCTAssertNil(store.errorMessage)
+    XCTAssertEqual(Set(store.places.map(\.id)), expectedIDs)
+    XCTAssertEqual(store.places.first { $0.id == target.id }?.coordinateQuality, .park)
+    let saved = try CatalogValidation.decode(Data(contentsOf: directory.appendingPathComponent("current.json")))
+    XCTAssertEqual(saved.sources?.first { $0.id == "regional-source" }?.missingCoordinateCount, 0)
+    XCTAssertEqual(saved.places.first { $0.id == target.id }?.sourceID, "regional-source")
+    let query = CatalogSearchQuery(revision: store.revision, text: "지역 장소", region: target.regionCode,
+      equipmentKind: "철봉", favoritesOnly: false, favorites: [], latitude: nil, longitude: nil)
+    XCTAssertEqual(CatalogSearch.results(in: store.places, query: query).map(\.id), [target.id])
+    XCTAssertThrowsError(try CatalogStore.prepareImport(regionalData, existing: nil, minimumVersion: 0))
+    XCTAssertThrowsError(try CatalogStore.prepareImport(coordinateData, existing: nil, minimumVersion: 0))
+    object["entries"] = []
+    let malformed = try JSONSerialization.data(withJSONObject: object)
+    try malformed.write(to: importURL)
+    await store.importJSON(from: importURL)
+    XCTAssertNotNil(store.errorMessage)
+    XCTAssertEqual(Set(store.places.map(\.id)), expectedIDs)
+    XCTAssertEqual(store.version, 5)
+  }
+
+  private func regionalPack(_ names: [String], capturedAt: String) throws -> CatalogPack {
+    var result = try national(names.map { row($0, equipment: "철봉") }, capturedAt: capturedAt)
+    for index in result.places.indices {
+      result.places[index].id = "regional-" + result.places[index].name
+      result.places[index].sourceID = "regional-source"
+      result.places[index].provenance.sourceURL = "https://example.org/regional"
+      result.places[index].latitude = nil
+      result.places[index].longitude = nil
+      result.places[index].coordinateQuality = .unknown
+    }
+    result.sources = [.init(id: "regional-source", capturedAt: capturedAt, rowCount: names.count,
+      placeCount: names.count, missingCoordinateCount: names.count, regions: [result.places[0].regionName])]
+    return result
   }
 
   private func row(_ name: String, equipment: String) -> [String: String] {

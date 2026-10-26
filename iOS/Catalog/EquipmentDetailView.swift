@@ -35,6 +35,17 @@ import MapKit
         }
         Text(place.coordinateQuality.title).font(.headline)
         Text(place.coordinateQuality.explanation).font(.subheadline).foregroundStyle(.secondary)
+        if let evidence = place.coordinateEvidence {
+          Text(place.coordinateQuality == .address ? "주소를 이용해 보완한 추정 좌표입니다." : "별도 공개 자료와 대조해 보완한 좌표입니다.")
+            .font(.footnote).foregroundStyle(.secondary)
+          LabeledContent("좌표 확인 방법", value: coordinateMethod(evidence.method))
+          LabeledContent("좌표 확인 시점", value: evidence.capturedAt)
+          LabeledContent("대조한 주소", value: evidence.matchedAddress)
+          if let record = evidence.sourceRecordID { LabeledContent("좌표 원자료 식별자", value: record) }
+          if let url = URL(string: evidence.sourceURL) { Link("좌표 보완 근거 보기", destination: url) }
+        } else if place.coordinate != nil {
+          Text("아래 공개 데이터 원자료에 포함된 좌표입니다.").font(.footnote).foregroundStyle(.secondary)
+        }
         if let coordinate = place.coordinate {
           Text("위도 \(coordinate.latitude.formatted(.number.precision(.fractionLength(6)))), 경도 \(coordinate.longitude.formatted(.number.precision(.fractionLength(6))))")
             .font(.caption).textSelection(.enabled)
@@ -90,6 +101,14 @@ import MapKit
     }
     .navigationTitle("시설 상세")
     .navigationBarTitleDisplayMode(.inline)
+  }
+
+  private func coordinateMethod(_ method: String) -> String {
+    switch method {
+    case "official-park-exact-match": return "공식 공원 자료의 장소명·주소 일치"
+    case "vworld-address-geocoding", "address-geocoding": return "공개 주소의 좌표 변환"
+    default: return method
+    }
   }
 
   private var addressSearchURL: URL? {

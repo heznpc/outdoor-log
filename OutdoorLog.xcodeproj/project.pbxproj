@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A680235405B94C5EBB284B30 /* regional-equipment.json in Resources */ = {isa = PBXBuildFile; fileRef = A680235405B94C5EBB284B31 /* regional-equipment.json */; };
+		A680235405B94C5EBB284B32 /* coordinate-supplements.json in Resources */ = {isa = PBXBuildFile; fileRef = A680235405B94C5EBB284B33 /* coordinate-supplements.json */; };
 		0E477BD3B23F7D76A98A737B /* HealthModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31B594DABF91CE82911DE04D /* HealthModelTests.swift */; };
 		0FD39400840CEA85CEF24D08 /* HealthLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F86C7544732CA859699EB4C /* HealthLibrary.swift */; };
 		146D6D1142B0745D57306854 /* WatchRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36812BF34C35AAD18AD72E84 /* WatchRootView.swift */; };
@@ -85,6 +87,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A680235405B94C5EBB284B31 /* regional-equipment.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "regional-equipment.json"; sourceTree = "<group>"; };
+		A680235405B94C5EBB284B33 /* coordinate-supplements.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "coordinate-supplements.json"; sourceTree = "<group>"; };
 		0055FA0A74137C1ACF38AA26 /* WatchWire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchWire.swift; sourceTree = "<group>"; };
 		020668BB22285334BE48404C /* CatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogTests.swift; sourceTree = "<group>"; };
 		02DC84625752EA1B0CD18BFB /* OutdoorLogApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutdoorLogApp.swift; sourceTree = "<group>"; };
@@ -219,6 +223,8 @@
 			isa = PBXGroup;
 			children = (
 				AE3F4BD642757D513A7D0EEF /* catalog.json */,
+				A680235405B94C5EBB284B31 /* regional-equipment.json */,
+				A680235405B94C5EBB284B33 /* coordinate-supplements.json */,
 				19BBAAD18C220FF4FB87F927 /* PrivacyInfo.xcprivacy */,
 			);
 			name = Resources;
@@ -384,6 +390,8 @@
 			files = (
 				5E17842991EBAADF4C56EB1C /* PrivacyInfo.xcprivacy in Resources */,
 				1C8E6CCD017BCE95682ACAE1 /* catalog.json in Resources */,
+				A680235405B94C5EBB284B30 /* regional-equipment.json in Resources */,
+				A680235405B94C5EBB284B32 /* coordinate-supplements.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
