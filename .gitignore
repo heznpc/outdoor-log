@@ -21,6 +21,16 @@ __pycache__/
 docs/
 documentation/
 notes/
+/research/
+/reports/
+/investigations/
+/handoff/
+/handoffs/
+/session-notes/
+/.codex/
+/.claude/
+*.jsonl
+*.log
 **/*.md
 **/*.mdx
 **/*.rst
@@ -37,3 +47,6 @@ notes/
 # Raw catalog downloads stay local; normalized, attributed resources are tracked.
 tools/catalog/raw/
 /Config/CatalogEndpoint.xcconfig
+
+# Local collector output, publication staging, and review evidence.
+/.catalog-*/
