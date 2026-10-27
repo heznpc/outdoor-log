@@ -10,6 +10,12 @@ xcuserdata/
 *.dSYM/
 *.mobileprovision
 *.p12
+*.p8
+*.pfx
+*.pem
+*.key
+*.keystore
+*.jks
 .env
 .env.*
 !.env.example
